@@ -46,57 +46,63 @@ const ProfilePage = ({ profile, setProfile, onClose }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
     
-    // Handles the avatar file selection and upload
+    // --- CORRECTED AVATAR UPLOAD FUNCTION ---
     const handleAvatarUpload = async (event) => {
         const file = event.target.files[0];
         if (!file) return;
 
         setLoading(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('You must be logged in to upload an avatar.');
 
-        const { data: { user } } = await supabase.auth.getUser();
+            // Use a consistent file path for the user's avatar to allow for overwrites.
+            const fileExt = file.name.split('.').pop();
+            const filePath = `${user.id}/avatar.${fileExt}`;
 
-        if (!user) {
-            setNotification({ type: 'error', message: 'You must be logged in to upload an avatar.' });
-            setLoading(false);
-            return;
-        }
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true, // This is crucial to overwrite the existing avatar.
+                });
 
-        const fileName = `${user.id}/${Date.now()}`;
-        const fileOptions = {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: file.type
-        };
+            if (uploadError) {
+                throw uploadError;
+            }
 
-        const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(fileName, file, fileOptions);
+            // Get the public URL and add a timestamp to prevent caching issues.
+            const { data: urlData } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(filePath);
 
-        if (uploadError) {
-            console.error('Supabase upload error:', uploadError);
-            setNotification({ type: 'error', message: `Upload failed: ${uploadError.message}` });
-            setLoading(false);
-            return;
-        }
+            if (!urlData) {
+                 throw new Error("Could not get public URL for the uploaded avatar.");
+            }
+            
+            const publicUrlWithCacheBuster = `${urlData.publicUrl}?t=${new Date().getTime()}`;
 
-        const { data: { publicUrl } } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(fileName);
+            // Update the profile in the database.
+            const { data: updatedProfile, error: updateError } = await supabase
+                .from('profiles')
+                .update({ avatar_url: publicUrlWithCacheBuster })
+                .eq('id', user.id)
+                .select()
+                .single();
 
-        const { data, error: updateError } = await supabase
-            .from('profiles')
-            .update({ avatar_url: publicUrl })
-            .eq('id', user.id)
-            .select()
-            .single();
+            if (updateError) {
+                throw updateError;
+            }
 
-        if (updateError) {
-            setNotification({ type: 'error', message: `Update failed: ${updateError.message}` });
-        } else {
-            setProfile(data);
+            setProfile(updatedProfile); // Update parent state
             setNotification({ type: 'success', message: 'Profile picture updated!' });
+
+        } catch (error) {
+            console.error('Error uploading avatar:', error);
+            setNotification({ type: 'error', message: error.message || 'An unexpected error occurred.' });
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleUpdateProfile = async (e) => {
@@ -145,7 +151,6 @@ const ProfilePage = ({ profile, setProfile, onClose }) => {
             {notification && <Notification {...notification} onDismiss={() => setNotification(null)} />}
             
             <div className="max-w-4xl mx-auto relative">
-                {/* --- Close Button --- */}
                 <button 
                     onClick={onClose} 
                     className="absolute top-0 right-0 -mt-4 -mr-4 md:mt-0 md:mr-0 text-gray-400 hover:text-gray-700 transition-colors z-10"
@@ -158,7 +163,6 @@ const ProfilePage = ({ profile, setProfile, onClose }) => {
                 
                 <div className="bg-white p-6 md:p-8 rounded-xl shadow-lg">
                     <form onSubmit={handleUpdateProfile}>
-                        {/* --- Profile Avatar Section --- */}
                         <div className="flex flex-col items-center md:flex-row md:items-start space-y-4 md:space-y-0 md:space-x-8 mb-8">
                             <div className="relative">
                                 <img
@@ -186,7 +190,6 @@ const ProfilePage = ({ profile, setProfile, onClose }) => {
                             </div>
                         </div>
 
-                        {/* --- Profile Fields Section --- */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="fullName">Full Name</label>
@@ -206,7 +209,6 @@ const ProfilePage = ({ profile, setProfile, onClose }) => {
                             </div>
                         </div>
                         
-                        {/* --- Action Buttons --- */}
                         <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end space-x-4">
                             {isEditing ? (
                                 <>

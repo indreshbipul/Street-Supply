@@ -6,6 +6,7 @@ import VendorDashboard from './components/VenderDashboard'; // Corrected typo fr
 import SupplierDashboard from './components/SupplierDashboard'; // Assuming component path
 import ProfilePage from './components/ProfilePage';
 import { Spinner } from './components/UI'; // Assuming component path
+import HelpCenter from './components/HelpCenter'; // --- IMPORT THE NEW COMPONENT ---
 
 export default function App() {
   // State for user session, profile data, loading status, and current view
@@ -15,25 +16,20 @@ export default function App() {
   const [view, setView] = useState('dashboard'); // 'dashboard' or 'profile'
 
   // Effect to handle user authentication state changes
-  useEffect(() => {
-    // Check for an existing session when the app loads
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      // Initial load is done, set loading to false
-      // The profile loading will be handled in the next effect
-      if (!session) {
-        setLoading(false);
-      }
-    });
+ useEffect(() => {
+  const getSession = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setSession(session);
+    setLoading(false); // Set loading here always
+  };
+  getSession();
 
-    // Listen for changes in authentication state (sign in, sign out)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+  });
 
-    // Cleanup subscription on component unmount
-    return () => subscription.unsubscribe();
-  }, []);
+  return () => subscription.unsubscribe();
+}, []);
 
   // Effect to fetch user profile when a session is available
   useEffect(() => {
@@ -107,13 +103,10 @@ export default function App() {
 
   return (
     <>
-      {/* You can place global styles here if needed */}
       <div className="min-h-screen bg-gray-50 font-sans">
-        {/* Only show the header if the user is logged in and has a profile */}
         {session && profile && (
           <header className="bg-white shadow-sm mb-8 md:mb-12">
             <nav className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-              {/* Logo/Brand name - clicking it goes to the dashboard */}
               <button onClick={() => setView('dashboard')} className="text-2xl font-bold text-indigo-600 hover:text-indigo-700 transition">
                 StreetSupply
               </button>
@@ -121,7 +114,6 @@ export default function App() {
                 <span className="text-gray-700 hidden sm:block">
                   Welcome, <span className="font-semibold">{profile.full_name || profile.email}</span>!
                 </span>
-                {/* Button to switch the view to the profile page */}
                 <button onClick={() => setView('profile')} className="btn-secondary-sm">Profile</button>
                 <button onClick={handleSignOut} className="btn-secondary-sm">Sign Out</button>
               </div>
@@ -131,6 +123,11 @@ export default function App() {
         <main className="container mx-auto px-4 sm:px-6 lg:px-8">
           {renderContent()}
         </main>
+        
+        {/* --- ADD THE HELP CENTER COMPONENT HERE --- */}
+        {session && profile && (
+          <HelpCenter session={session} profile={profile} />
+        )}
       </div>
     </>
   );

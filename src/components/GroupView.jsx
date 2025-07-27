@@ -294,40 +294,49 @@ const DealCard = ({ deal, onAddToCart, onToggleFavorite, isFavorite, onViewSuppl
     const averageRating = ratings.length > 0 ? ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length : 0;
 
     return (
-    <div className="bg-white p-5 rounded-xl shadow-lg transition-shadow hover:shadow-xl flex flex-col gap-4">
+    <div className="bg-white p-5 rounded-xl shadow-lg transition-shadow hover:shadow-xl flex items-start gap-4">
         {showReviews && <Modal onClose={() => setShowReviews(false)}><SupplierReviewsModal reviews={ratings} supplierName={deal.profiles?.business_name} /></Modal>}
-        <div className="flex-grow">
-            <div className="flex justify-between items-start">
-                <h4 className="text-xl font-bold text-gray-900">{deal.item_name}</h4>
-                <button 
-                    onClick={() => onToggleFavorite(deal.supplier_id)} 
-                    className={`p-1 rounded-full ${isFavorite ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-400'}`} 
-                    title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                    aria-pressed={isFavorite}
-                >
-                    <IconStar isFavorite={isFavorite} />
-                </button>
-            </div>
-            <button onClick={onViewSupplier} className="text-sm text-indigo-600 hover:underline mb-3">by {deal.profiles?.business_name || 'Unknown Supplier'}</button>
-            
-            {ratings.length > 0 ? (
-                <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={() => setShowReviews(true)}>
-                    <StarRating rating={averageRating} readOnly />
-                    <span className="text-sm text-blue-600 hover:underline">({ratings.length} reviews)</span>
-                </div>
-            ) : (
-                    <p className="text-sm text-gray-400 mb-3">No reviews yet</p>
-            )}
-            <p className="text-gray-600 text-sm mb-4">{deal.item_description}</p>
-        </div>
+        
+        <img 
+            src={deal.image_url || 'https://placehold.co/100x100/e2e8f0/e2e8f0?text=No+Image'} 
+            alt={deal.item_name} 
+            className="w-24 h-24 rounded-md object-cover bg-gray-100 flex-shrink-0"
+        />
 
-        <div className="border-t pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-                <p className="text-2xl font-bold text-indigo-600">₹{deal.price_per_unit.toFixed(2)} <span className="text-base font-normal text-gray-500">/ {deal.unit}</span></p>
+        <div className="flex-grow flex flex-col h-full"> 
+            <div className="flex-grow">
+                <div className="flex justify-between items-start">
+                    <h4 className="text-xl font-bold text-gray-900">{deal.item_name}</h4>
+                    <button 
+                        onClick={() => onToggleFavorite(deal.supplier_id)} 
+                        className={`p-1 rounded-full ${isFavorite ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-400'}`} 
+                        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        aria-pressed={isFavorite}
+                    >
+                        <IconStar isFavorite={isFavorite} />
+                    </button>
+                </div>
+                <button onClick={onViewSupplier} className="text-sm text-indigo-600 hover:underline mb-3">by {deal.profiles?.business_name || 'Unknown Supplier'}</button>
+                
+                {ratings.length > 0 ? (
+                    <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={() => setShowReviews(true)}>
+                        <StarRating rating={averageRating} readOnly />
+                        <span className="text-sm text-blue-600 hover:underline">({ratings.length} reviews)</span>
+                    </div>
+                ) : (
+                        <p className="text-sm text-gray-400 mb-3">No reviews yet</p>
+                )}
+                <p className="text-gray-600 text-sm mb-4">{deal.item_description}</p>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-            <input type="number" min={deal.min_order_quantity} value={quantity} onChange={(e) => setQuantity(Math.max(deal.min_order_quantity, parseInt(e.target.value) || 1))} className="w-20 p-2 border rounded-md text-center"/>
-            <button onClick={() => onAddToCart(deal.id, quantity)} className="btn-primary-sm flex-grow bg-blue-500 rounded-lg px-4 py-2 hover:bg-blue-600 text-white ">Add to Cart</button>
+
+            <div className="border-t pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <p className="text-2xl font-bold text-indigo-600">₹{deal.price_per_unit.toFixed(2)} <span className="text-base font-normal text-gray-500">/ {deal.unit}</span></p>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <input type="number" min={deal.min_order_quantity} value={quantity} onChange={(e) => setQuantity(Math.max(deal.min_order_quantity, parseInt(e.target.value) || 1))} className="w-20 p-2 border rounded-md text-center"/>
+                    <button onClick={() => onAddToCart(deal.id, quantity)} className="btn-primary-sm flex-grow bg-blue-500 rounded-lg px-4 py-2 hover:bg-blue-600 text-white ">Add to Cart</button>
+                </div>
             </div>
         </div>
     </div>

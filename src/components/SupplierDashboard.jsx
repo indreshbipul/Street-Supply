@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Spinner, Modal, Notification, StarRating } from './UI';
 
-// --- SVG Icons ---
+// --- SVG Icons (No changes needed here) ---
 const IconFilter = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>;
 const IconArrowUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>;
 const IconArrowDown = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>;
@@ -13,11 +13,9 @@ const IconStar = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height
 const IconTrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
 const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
 const IconMenu = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>;
+const ImageIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-image"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>;
 
 
-/**
- * Converts a date string to a "time ago" format.
- */
 const timeAgo = (date) => {
   if (!date) return '';
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -36,6 +34,10 @@ const timeAgo = (date) => {
 
 // --- Main Supplier Dashboard Component ---
 const SupplierDashboard = ({ profile, session }) => {
+    if (!session) {
+        return null; 
+    }
+
     const [view, setView] = useState('orders');
     const [orders, setOrders] = useState([]);
     const [deals, setDeals] = useState([]);
@@ -46,8 +48,6 @@ const SupplierDashboard = ({ profile, session }) => {
     const [viewingOrder, setViewingOrder] = useState(null);
     const [notification, setNotification] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-    // Filter and sort states
     const [orderFilter, setOrderFilter] = useState('');
     const [orderSort, setOrderSort] = useState({ key: 'created_at', asc: false });
     const [dealFilter, setDealFilter] = useState('');
@@ -56,6 +56,7 @@ const SupplierDashboard = ({ profile, session }) => {
     const [reviewSort, setReviewSort] = useState({ key: 'created_at', asc: false });
 
     const fetchData = useCallback(async () => {
+        if (!session) return; 
         setLoading(true);
         
         const { data: ordersData } = await supabase
@@ -72,30 +73,71 @@ const SupplierDashboard = ({ profile, session }) => {
         setReviews(reviewsData || []);
         
         setLoading(false);
-    }, [session.user.id]);
+    }, [session]); 
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        if (session) {
+            fetchData();
+        }
+    }, [session, fetchData]);
 
-    const handleCreateDeal = async (dealData) => {
-        const { error } = await supabase.from('deals').insert({ ...dealData, supplier_id: session.user.id });
-        if (error) setNotification({ type: 'error', message: error.message });
-        else {
+    // --- MODIFIED: Handle deal creation with image upload ---
+    const handleCreateDeal = async (dealData, imageFile) => {
+        try {
+            let imageUrl = null;
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('deal-images')
+                    .upload(fileName, imageFile);
+
+                if (uploadError) throw uploadError;
+
+                const { data: urlData } = supabase.storage.from('deal-images').getPublicUrl(fileName);
+                imageUrl = urlData.publicUrl;
+            }
+
+            const finalDealData = { ...dealData, supplier_id: session.user.id, image_url: imageUrl };
+            const { error: insertError } = await supabase.from('deals').insert(finalDealData);
+
+            if (insertError) throw insertError;
+
             setNotification({ type: 'success', message: 'Deal created successfully!' });
             fetchData();
             setShowCreateDeal(false);
+        } catch (error) {
+            setNotification({ type: 'error', message: error.message });
         }
     };
 
-    const handleUpdateDeal = async (dealData) => {
-        const { error } = await supabase.from('deals').update(dealData).eq('id', editingDeal.id);
-        if (error) {
-            setNotification({ type: 'error', message: `Failed to update deal: ${error.message}` });
-        } else {
+    // --- MODIFIED: Handle deal updates with image upload ---
+    const handleUpdateDeal = async (dealData, imageFile) => {
+        try {
+            let imageUrl = editingDeal.image_url; // Keep existing image by default
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+                const { error: uploadError } = await supabase.storage
+                    .from('deal-images')
+                    .upload(fileName, imageFile);
+
+                if (uploadError) throw uploadError;
+
+                const { data: urlData } = supabase.storage.from('deal-images').getPublicUrl(fileName);
+                imageUrl = urlData.publicUrl;
+            }
+
+            const finalDealData = { ...dealData, image_url: imageUrl };
+            const { error: updateError } = await supabase.from('deals').update(finalDealData).eq('id', editingDeal.id);
+
+            if (updateError) throw updateError;
+
             setNotification({ type: 'success', message: 'Deal updated successfully!' });
             setEditingDeal(null);
             fetchData();
+        } catch (error) {
+            setNotification({ type: 'error', message: `Failed to update deal: ${error.message}` });
         }
     };
     
@@ -253,7 +295,7 @@ const SupplierDashboard = ({ profile, session }) => {
                             </div>
                         )}
                         {view === 'reviews' && (
-                             <div>
+                            <div>
                                 <FilterSortControls
                                     filters={[{ value: '', label: 'All Ratings' }, { value: '5', label: '5 Stars' }, { value: '4', label: '4 Stars' }, { value: '3', label: '3 Stars' }, { value: '2', label: '2 Stars' }, { value: '1', label: '1 Star' }]}
                                     sortOptions={[{ key: 'created_at', label: 'Most Recent' }]}
@@ -277,7 +319,9 @@ const SupplierDashboard = ({ profile, session }) => {
     );
 };
 
-// --- New Analytics View ---
+
+// --- All sub-components below remain unchanged ---
+
 const AnalyticsView = ({ orders, deals }) => {
     const { totalRevenue, completedOrdersCount, averageOrderValue, topDeals } = useMemo(() => {
         const completedOrders = orders.filter(order => order.status === 'completed');
@@ -340,8 +384,6 @@ const AnalyticsView = ({ orders, deals }) => {
     );
 };
 
-// --- Reusable UI Components ---
-
 const TabButton = ({ icon, label, isActive, onClick }) => (
     <button onClick={onClick} className={`flex items-center gap-2 w-full text-left px-3 py-2 font-medium text-sm rounded-md transition-colors sm:w-auto ${isActive ? 'bg-indigo-100 text-indigo-600' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}>
         {icon}
@@ -373,8 +415,6 @@ const FilterSortControls = ({ filters, sortOptions, filter, setFilter, sort, set
         </div>
     </div>
 );
-
-// --- Card Components ---
 
 const SupplierReviewCard = ({ review }) => (
     <div className="bg-white p-4 rounded-lg shadow-md transition hover:shadow-lg">
@@ -432,6 +472,7 @@ const SupplierOrderCard = ({ order, onUpdateStatus, onViewDetails }) => {
     );
 };
 
+// --- MODIFIED: SupplierDealCard to display image ---
 const SupplierDealCard = ({ deal, onUpdate, onEdit }) => {
     const [isUpdating, setIsUpdating] = useState(false);
     const toggleDealStatus = async () => {
@@ -444,27 +485,32 @@ const SupplierDealCard = ({ deal, onUpdate, onEdit }) => {
     const isLowStock = deal.stock_quantity <= 10;
 
     return (
-        <div className={`bg-white p-4 rounded-lg shadow-md flex flex-col sm:flex-row justify-between items-center gap-4 transition hover:shadow-lg ${isLowStock ? 'border-l-4 border-yellow-400' : ''}`}>
+        <div className={`bg-white p-4 rounded-lg shadow-md flex flex-col sm:flex-row items-start gap-4 transition hover:shadow-lg ${isLowStock ? 'border-l-4 border-yellow-400' : ''}`}>
+            <img 
+                src={deal.image_url || 'https://placehold.co/100x100/e2e8f0/e2e8f0?text=No+Image'} 
+                alt={deal.item_name} 
+                className="w-24 h-24 rounded-md object-cover bg-gray-100"
+            />
             <div className="flex-grow">
                 <p className="font-bold text-lg text-gray-800">{deal.item_name}</p>
                 <p className="text-gray-600">₹{deal.price_per_unit}/{deal.unit} | Min: {deal.min_order_quantity} {deal.unit}</p>
                 <p className="text-sm text-gray-500 mt-1">Pincodes: {deal.target_pincodes.join(', ')}</p>
                 {isLowStock && <p className="text-sm font-bold text-yellow-600 mt-1">Low Stock: {deal.stock_quantity} left</p>}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-end gap-2 self-stretch justify-between w-full sm:w-auto">
                 <span className={`px-3 py-1 text-sm rounded-full font-semibold ${deal.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {deal.is_active ? 'Active' : 'Inactive'}
                 </span>
-                <button onClick={onEdit} className="btn-secondary-sm flex items-center gap-1"><IconEdit /> Edit</button>
-                <button onClick={toggleDealStatus} className="btn-secondary-sm w-28" disabled={isUpdating}>
-                    {isUpdating ? <Spinner size="sm" /> : (deal.is_active ? 'Deactivate' : 'Activate')}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={onEdit} className="btn-secondary-sm flex items-center gap-1"><IconEdit /> Edit</button>
+                    <button onClick={toggleDealStatus} className="btn-secondary-sm w-28" disabled={isUpdating}>
+                        {isUpdating ? <Spinner size="sm" /> : (deal.is_active ? 'Deactivate' : 'Activate')}
+                    </button>
+                </div>
             </div>
         </div>
     );
 };
-
-// --- Form & Modal Components ---
 
 const OrderDetailsModal = ({ order }) => (
     <div>
@@ -488,15 +534,26 @@ const OrderDetailsModal = ({ order }) => (
     </div>
 );
 
+// --- MODIFIED: CreateDealForm with image upload ---
 const CreateDealForm = ({ onSubmit }) => {
     const [formData, setFormData] = useState({
         item_name: '', item_description: '', price_per_unit: '',
         unit: 'kg', min_order_quantity: '', target_pincodes: '', stock_quantity: ''
     });
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            setImagePreview(URL.createObjectURL(file));
+        }
     };
 
     const handleSubmit = (e) => {
@@ -508,12 +565,32 @@ const CreateDealForm = ({ onSubmit }) => {
             min_order_quantity: parseInt(formData.min_order_quantity, 10),
             stock_quantity: parseInt(formData.stock_quantity, 10),
         };
-        onSubmit(submissionData);
+        onSubmit(submissionData, imageFile);
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <h3 className="text-xl font-bold">Create a New Deal</h3>
+            
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Item Image</label>
+                <div className="mt-1 flex items-center gap-4">
+                    <span className="inline-block h-24 w-24 rounded-lg overflow-hidden bg-gray-100">
+                        {imagePreview ? (
+                            <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                        ) : (
+                            <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                <ImageIcon />
+                            </div>
+                        )}
+                    </span>
+                    <label htmlFor="file-upload" className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <span>Upload a file</span>
+                        <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleImageChange} accept="image/png, image/jpeg" />
+                    </label>
+                </div>
+            </div>
+
             <input name="item_name" value={formData.item_name} onChange={handleChange} placeholder="Item Name (e.g., Onions)" className="input-style w-full" required />
             <textarea name="item_description" value={formData.item_description} onChange={handleChange} placeholder="Description (e.g., Fresh Nashik Red Onions)" className="input-style w-full" required rows="3" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -533,6 +610,7 @@ const CreateDealForm = ({ onSubmit }) => {
     );
 };
 
+// --- MODIFIED: EditDealForm with image upload ---
 const EditDealForm = ({ deal, onSubmit }) => {
     const [formData, setFormData] = useState({
         item_name: deal.item_name,
@@ -543,10 +621,20 @@ const EditDealForm = ({ deal, onSubmit }) => {
         target_pincodes: deal.target_pincodes.join(', '),
         stock_quantity: deal.stock_quantity
     });
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(deal.image_url);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            setImagePreview(URL.createObjectURL(file));
+        }
     };
 
     const handleSubmit = (e) => {
@@ -559,12 +647,32 @@ const EditDealForm = ({ deal, onSubmit }) => {
             min_order_quantity: parseInt(formData.min_order_quantity, 10),
             stock_quantity: parseInt(formData.stock_quantity, 10),
         };
-        onSubmit(submissionData);
+        onSubmit(submissionData, imageFile);
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <h3 className="text-xl font-bold">Edit Deal</h3>
+            
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Item Image</label>
+                <div className="mt-1 flex items-center gap-4">
+                    <span className="inline-block h-24 w-24 rounded-lg overflow-hidden bg-gray-100">
+                        {imagePreview ? (
+                            <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                        ) : (
+                            <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                <ImageIcon />
+                            </div>
+                        )}
+                    </span>
+                    <label htmlFor="file-upload-edit" className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <span>Change</span>
+                        <input id="file-upload-edit" name="file-upload-edit" type="file" className="sr-only" onChange={handleImageChange} accept="image/png, image/jpeg" />
+                    </label>
+                </div>
+            </div>
+
             <input name="item_name" value={formData.item_name} onChange={handleChange} placeholder="Item Name" className="input-style w-full" required />
             <textarea name="item_description" value={formData.item_description} onChange={handleChange} placeholder="Description" className="input-style w-full" required rows="3" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
