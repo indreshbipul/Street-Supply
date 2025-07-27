@@ -34,7 +34,7 @@ const ShoppingCartIcon = (props) => <svg xmlns="http://www.w3.org/2000/svg" widt
 const MagnifyingGlassIcon = (props) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
 
 // --- Cart Modal Component ---
-const CartModal = ({ deals, cart, onClose, onUpdateCart, onPlaceOrder }) => {
+const CartModal = ({ deals, cart, onClose, onUpdateCart, onPlaceOrder, isPlacingOrder }) => {
     const cartItems = Object.keys(cart).map(dealId => ({
         deal: deals.find(d => d.id === dealId),
         quantity: cart[dealId],
@@ -70,7 +70,9 @@ const CartModal = ({ deals, cart, onClose, onUpdateCart, onPlaceOrder }) => {
                                 <span>Total:</span>
                                 <span>₹{totalCartValue.toFixed(2)}</span>
                             </div>
-                            <button onClick={onPlaceOrder} className="btn-primary w-full">Place Order</button>
+                            <button onClick={onPlaceOrder} className="btn-primary w-full" disabled={isPlacingOrder}>
+                                {isPlacingOrder ? <Spinner size="sm" /> : 'Place Order'}
+                            </button>
                         </div>
                     </div>
                 ) : (
@@ -87,17 +89,17 @@ const ProductCard = ({ product, onAddToCart }) => {
     const [quantity, setQuantity] = useState(product.min_order_quantity || 1);
 
     const handleAddToCart = () => {
-        if (quantity > 0) {
+        if (quantity >= (product.min_order_quantity || 1)) {
             onAddToCart(product, quantity);
         }
     };
 
     return (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col transition-shadow hover:shadow-lg">
-            <img 
-                src={product.image_url || 'https://via.placeholder.com/300x200.png?text=No+Image'} 
-                alt={product.name} 
-                className="w-full h-40 object-cover" 
+            <img
+                src={product.image_url || 'https://via.placeholder.com/300x200.png?text=No+Image'}
+                alt={product.name}
+                className="w-full h-40 object-cover"
             />
             <div className="p-4 flex flex-col flex-grow">
                 <h3 className="text-lg font-bold text-slate-800">{product.name}</h3>
@@ -107,6 +109,7 @@ const ProductCard = ({ product, onAddToCart }) => {
                     <p className="text-xl font-bold text-indigo-600">
                         ₹{product.price}<span className="text-sm font-normal text-slate-500"> / {product.unit}</span>
                     </p>
+                    <p className="text-xs text-slate-500">Min order: {product.min_order_quantity || 1} {product.unit}</p>
                     <div className="mt-4 flex items-center gap-2">
                         <input
                             type="number"
@@ -128,14 +131,15 @@ const ProductCard = ({ product, onAddToCart }) => {
 const IndividualOrderView = ({ profile, onBack, session }) => {
     const [deals, setDeals] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [cart, setCart] = useState({}); // Changed cart to an object for easier updates
+    const [cart, setCart] = useState({});
     const [showCart, setShowCart] = useState(false);
     const [notification, setNotification] = useState(null);
 
 
-    // Effect to fetch products from Supabase using the logic from GroupView
+    // Effect to fetch products from Supabase
     useEffect(() => {
         const fetchDeals = async () => {
             if (!profile?.pincode) {
@@ -146,8 +150,9 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
 
             setLoading(true);
             try {
-                const { data: dealsData, error: dealsError } = await supabase.rpc('search_deals_by_pincode', { 
-                    pincode_to_search: profile.pincode 
+                // Use the RPC function to find deals
+                const { data: dealsData, error: dealsError } = await supabase.rpc('search_deals_by_pincode', {
+                    pincode_to_search: profile.pincode
                 });
 
                 if (dealsError) throw dealsError;
@@ -157,24 +162,28 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
                     return;
                 };
 
+                // Get unique supplier IDs to fetch their profiles
                 const supplierIds = [...new Set(dealsData.map(d => d.supplier_id))];
                 let dealsWithProfiles = dealsData;
 
+                // Fetch profiles if there are suppliers
                 if (supplierIds.length > 0) {
                     const { data: profilesData, error: profilesError } = await supabase
                         .from('profiles')
                         .select(`id, business_name`)
                         .in('id', supplierIds);
-                    
+
                     if (profilesError) throw profilesError;
 
+                    // Map profiles to their deals
                     const profilesMap = new Map(profilesData.map(p => [p.id, p.business_name]));
                     dealsWithProfiles = dealsData.map(deal => ({
                         ...deal,
                         supplierName: profilesMap.get(deal.supplier_id) || 'Unknown Supplier'
                     }));
                 }
-                
+
+                // Format the final deals array for the UI
                 const formattedDeals = dealsWithProfiles.map(d => ({
                     id: d.id,
                     name: d.item_name,
@@ -203,7 +212,7 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
 
     const filteredDeals = useMemo(() => {
         if (!deals) return [];
-        return deals.filter(deal => 
+        return deals.filter(deal =>
             deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             deal.supplier.toLowerCase().includes(searchTerm.toLowerCase())
         );
@@ -216,8 +225,10 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
             return newCart;
         });
         setNotification({ type: 'success', message: `${quantity} x ${product.name} added to cart.` });
+        // Auto-dismiss notification after 3 seconds
+        setTimeout(() => setNotification(null), 3000);
     };
-    
+
     const handleUpdateCart = (dealId, quantity) => {
         const newQuantity = parseInt(quantity, 10);
         if (isNaN(newQuantity) || newQuantity < 0) return;
@@ -232,14 +243,24 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
         });
     };
 
+    // --- REVISED handlePlaceOrder using the RPC ---
     const handlePlaceOrder = async () => {
         const cartItems = Object.keys(cart).filter(dealId => cart[dealId] > 0);
         if (cartItems.length === 0) {
             setNotification({ type: 'error', message: 'Your cart is empty.' });
             return;
         }
-        
-        // This logic creates a separate order for each supplier in the cart
+
+        // Validate minimum order quantity for all items
+        for (const dealId of cartItems) {
+            const deal = deals.find(d => d.id === dealId);
+            if (cart[dealId] < deal.min_order_quantity) {
+                setNotification({ type: 'error', message: `'${deal.name}' requires a minimum order of ${deal.min_order_quantity}.` });
+                return;
+            }
+        }
+
+        // Group items by supplier to create separate orders
         const ordersBySupplier = cartItems.reduce((acc, dealId) => {
             const deal = deals.find(d => d.id === dealId);
             if (!deal) return acc;
@@ -247,31 +268,32 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
             if (!acc[supplierId]) {
                 acc[supplierId] = { items: [] };
             }
+            // The RPC expects a specific JSON structure for items
             acc[supplierId].items.push({ deal_id: deal.id, quantity: cart[dealId] });
             return acc;
         }, {});
 
-        setLoading(true);
+        setIsPlacingOrder(true);
         try {
+            // Call the RPC for each supplier's order
             for (const supplierId in ordersBySupplier) {
                 const orderData = ordersBySupplier[supplierId];
-                // IMPORTANT: You need to create this RPC function in your Supabase SQL editor.
-                // It should handle creating an individual order and its items atomically.
                 const { error } = await supabase.rpc('create_individual_order', {
                     p_supplier_id: supplierId,
                     p_vendor_id: session.user.id,
                     p_items: orderData.items
                 });
 
-                if (error) throw error;
+                if (error) throw error; // If one order fails, stop and show error
             }
+
             setNotification({ type: 'success', message: 'Your order(s) have been placed successfully!' });
             setCart({});
             setShowCart(false);
         } catch (error) {
             setNotification({ type: 'error', message: `Failed to place order: ${error.message}` });
         } finally {
-            setLoading(false);
+            setIsPlacingOrder(false);
         }
     };
 
@@ -309,7 +331,7 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
     return (
         <div className="min-h-screen bg-slate-50 font-sans">
             <Notification {...notification} onDismiss={() => setNotification(null)} />
-            
+
             {/* --- Header --- */}
             <header className="bg-white/80 backdrop-blur-lg sticky top-0 z-10 border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-3 flex items-center justify-between">
@@ -352,7 +374,7 @@ const IndividualOrderView = ({ profile, onBack, session }) => {
             )}
 
             {/* --- Cart Modal --- */}
-            {showCart && <CartModal deals={deals} cart={cart} onClose={() => setShowCart(false)} onUpdateCart={handleUpdateCart} onPlaceOrder={handlePlaceOrder} />}
+            {showCart && <CartModal deals={deals} cart={cart} onClose={() => setShowCart(false)} onUpdateCart={handleUpdateCart} onPlaceOrder={handlePlaceOrder} isPlacingOrder={isPlacingOrder} />}
         </div>
     );
 };

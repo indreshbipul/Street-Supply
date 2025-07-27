@@ -664,14 +664,15 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
 
     // --- DATA FETCHING ---
     const fetchOrders = useCallback(async (groupId) => {
-        const { data, error } = await supabase.from('group_orders')
-            .select('*, supplier:supplier_id(id, business_name), order_items(*, deal:deals(*)), ratings(*, vendor:vendor_id(full_name))')
-            .eq('group_id', groupId)
-            .order('created_at', { ascending: false });
-        if (error) setNotification({type: 'error', message: "Error fetching orders"});
-        else setOrders(data || []);
-    }, []);
+    const { data, error } = await supabase.from('group_orders')
+        // CORRECTED: Joins 'deals' via the 'deal_id' foreign key and renames it to 'deal'.
+        .select('*, supplier:supplier_id(id, business_name), order_items(*, deal:deals(*)), ratings(*, vendor:vendor_id(full_name))')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false });
 
+    if (error) setNotification({type: 'error', message: "Error fetching orders"});
+    else setOrders(data || []);
+}, []);
     const fetchGroupData = useCallback(async (showLoading = true) => {
         if(showLoading) setLoading(true);
         
