@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './services/supabaseClient';
-import AuthComponent from './components/Auth'; // Assuming component path
+import AuthComponent from './components/auth'; // Assuming component path
 import ProfileSetup from './components/ProfileSetup'; // Assuming component path
 import VendorDashboard from './components/VenderDashboard'; // Corrected typo from Vender to Vendor
 import SupplierDashboard from './components/SupplierDashboard'; // Assuming component path
