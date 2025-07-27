@@ -1,9 +1,57 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '../services/supabaseClient';
-import { Spinner, Modal, Notification, StarRating } from './UI';
-import AdminSettings from './AdminSettings';
 
-// --- SVG Icons ---
+// --- Real Supabase Client ---
+// Make sure this path is correct for your project structure.
+import { supabase } from '../services/supabaseClient';
+
+// --- UI Components (Spinner, Modal, etc.) ---
+// These are assumed to be in your './UI' file. I've included definitions
+// here to make this example fully runnable.
+const Spinner = () => <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>;
+const Modal = ({ onClose, children }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
+            <div className="relative">
+                <button onClick={onClose} className="absolute -top-3 -right-3 text-gray-400 hover:text-gray-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                {children}
+            </div>
+        </div>
+    </div>
+);
+const Notification = ({ type, message, onDismiss }) => {
+    if (!message) return null;
+    const baseClasses = "fixed top-5 right-5 flex items-center gap-4 p-4 rounded-lg shadow-lg z-50";
+    const typeClasses = { success: "bg-green-50 text-green-800", error: "bg-red-50 text-red-800", info: "bg-blue-50 text-blue-800" };
+    return (
+        <div className={`${baseClasses} ${typeClasses[type]}`}>
+            <p className="flex-grow text-sm">{message}</p>
+            <button onClick={onDismiss} className="text-current opacity-70 hover:opacity-100">&times;</button>
+        </div>
+    );
+};
+const StarRating = ({ rating, setRating, readOnly = false }) => (
+    <div className="flex items-center">
+        {[1, 2, 3, 4, 5].map((star) => (
+            <svg
+                key={star}
+                onClick={() => !readOnly && setRating(star)}
+                className={`w-5 h-5 ${readOnly ? '' : 'cursor-pointer'} ${rating >= star ? 'text-yellow-400' : 'text-gray-300'}`}
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                xmlns="http://www.w3.org/2000/svg"
+            >
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+        ))}
+    </div>
+);
+
+
+// ====================================================================================
+// --- ICONS ---
+// ====================================================================================
 const IconFilter = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>;
 const IconArrowUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>;
 const IconArrowDown = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>;
@@ -16,24 +64,191 @@ const IconRepeat = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" heig
 const IconTrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
 const IconMenu = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>;
 const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+const IconTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
 
+
+// ====================================================================================
+// --- UTILITY FUNCTIONS ---
+// ====================================================================================
 const timeAgo = (date) => {
-  if (!date) return '';
-  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-  let interval = seconds / 31536000;
-  if (interval > 1) return `${Math.floor(interval)} years ago`;
-  interval = seconds / 2592000;
-  if (interval > 1) return `${Math.floor(interval)} months ago`;
-  interval = seconds / 86400;
-  if (interval > 1) return `${Math.floor(interval)} days ago`;
-  interval = seconds / 3600;
-  if (interval > 1) return `${Math.floor(interval)} hours ago`;
-  interval = seconds / 60;
-  if (interval > 1) return `${Math.floor(interval)} minutes ago`;
-  return `${Math.floor(seconds)} seconds ago`;
+    if (!date) return '';
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return `${Math.floor(interval)} years ago`;
+    interval = seconds / 2592000;
+    if (interval > 1) return `${Math.floor(interval)} months ago`;
+    interval = seconds / 86400;
+    if (interval > 1) return `${Math.floor(interval)} days ago`;
+    interval = seconds / 3600;
+    if (interval > 1) return `${Math.floor(interval)} hours ago`;
+    interval = seconds / 60;
+    if (interval > 1) return `${Math.floor(interval)} minutes ago`;
+    return `${Math.floor(seconds)} seconds ago`;
 };
 
-// --- Sub-Components for GroupView ---
+// ====================================================================================
+// --- AdminSettings COMPONENT ---
+// ====================================================================================
+const AdminSettings = ({ group, members, session, onUpdate, onGroupDeleted, setParentNotification }) => {
+    const [newName, setNewName] = useState(group.name);
+    const [newAdminId, setNewAdminId] = useState('');
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showTransferConfirm, setShowTransferConfirm] = useState(false);
+    const [showRemoveConfirm, setShowRemoveConfirm] = useState(null);
+    const [confirmText, setConfirmText] = useState('');
+
+    const handleUpdateDetails = async (e) => {
+        e.preventDefault();
+        const { error } = await supabase.from('groups').update({ name: newName }).eq('id', group.id);
+        if (error) {
+            setParentNotification({ type: 'error', message: error.message });
+        } else {
+            setParentNotification({ type: 'success', message: 'Group name updated.' });
+            onUpdate();
+        }
+    };
+    
+    const handleTransferAdmin = async () => {
+        if (!newAdminId) return;
+        const { error } = await supabase.from('groups').update({ admin_id: newAdminId }).eq('id', group.id);
+        if (error) {
+            setParentNotification({ type: 'error', message: error.message });
+        } else {
+            setParentNotification({ type: 'success', message: 'Admin rights transferred successfully.' });
+            onUpdate();
+        }
+        setShowTransferConfirm(false);
+    };
+
+    const handleRemoveMember = async (memberId) => {
+        if (memberId === group.admin_id) return;
+        const { error } = await supabase.from('group_members').delete().match({ group_id: group.id, user_id: memberId });
+        if (error) {
+            setParentNotification({ type: 'error', message: error.message });
+        } else {
+            setParentNotification({ type: 'success', message: 'Member removed.' });
+            onUpdate();
+        }
+        setShowRemoveConfirm(null);
+    };
+
+    const handleDeleteGroup = async () => {
+        if (confirmText !== `delete ${group.name}`) {
+            setParentNotification({ type: 'error', message: 'Confirmation text does not match.' });
+            return;
+        }
+        const { error } = await supabase.from('groups').delete().eq('id', group.id);
+        if (error) {
+            setParentNotification({ type: 'error', message: `Failed to delete group: ${error.message}` });
+        } else {
+            onGroupDeleted();
+        }
+        setShowDeleteConfirm(false);
+    };
+    
+    useEffect(() => {
+        setNewName(group.name);
+    }, [group.name]);
+
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-md space-y-10">
+            <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><IconSettings /> Admin Controls</h3>
+            
+            <form onSubmit={handleUpdateDetails} className="space-y-3">
+                <h4 className="text-lg font-semibold border-b pb-2">Edit Group Details</h4>
+                <div>
+                    <label htmlFor="groupName" className="block text-sm font-medium text-gray-700">Group Name</label>
+                    <input id="groupName" type="text" value={newName} onChange={e => setNewName(e.target.value)} className="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                </div>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-md hover:bg-indigo-700">Save Changes</button>
+            </form>
+
+            <form onSubmit={(e) => {e.preventDefault(); if(newAdminId) setShowTransferConfirm(true);}} className="space-y-3">
+                <h4 className="text-lg font-semibold border-b pb-2">Transfer Admin Ownership</h4>
+                <p className="text-sm text-gray-600">If you transfer ownership, you will become a regular member.</p>
+                <div>
+                    <label htmlFor="newAdmin" className="block text-sm font-medium text-gray-700">Select New Admin</label>
+                    <select id="newAdmin" value={newAdminId} onChange={e => setNewAdminId(e.target.value)} className="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option value="" disabled>Select a member...</option>
+                        {members.filter(m => m.id !== session.user.id).map(m => (
+                            <option key={m.id} value={m.id}>{m.full_name} ({m.business_name})</option>
+                        ))}
+                    </select>
+                </div>
+                <button type="submit" className="px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-700 disabled:opacity-50" disabled={!newAdminId}>Transfer Ownership</button>
+            </form>
+
+            <div className="space-y-3">
+                <h4 className="text-lg font-semibold border-b pb-2">Manage Members</h4>
+                <ul className="space-y-2 max-w-md">
+                    {members.map(member => (
+                        <li key={member.id} className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50">
+                            <div>
+                                <p className="font-semibold">{member.full_name}</p>
+                                <p className="text-sm text-gray-500">{member.business_name}</p>
+                            </div>
+                            {member.id !== group.admin_id ? (
+                                <button onClick={() => setShowRemoveConfirm(member)} className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 flex items-center gap-1"><IconTrash /> Remove</button>
+                            ) : (
+                                <span className="text-xs font-bold bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full">Admin</span>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            <div className="space-y-3 border-t-2 border-red-200 pt-6">
+                <h4 className="text-lg font-semibold text-red-700">Danger Zone</h4>
+                <p className="text-sm text-gray-600">Deleting the group is permanent and will remove all associated data. This cannot be undone.</p>
+                <button onClick={() => setShowDeleteConfirm(true)} className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-md hover:bg-red-700">Delete This Group</button>
+            </div>
+
+            {showTransferConfirm && (
+                <Modal onClose={() => setShowTransferConfirm(false)}>
+                    <div className="p-6 text-center">
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">Transfer Ownership?</h3>
+                        <p className="text-gray-600 mb-6">Are you sure? You will lose your admin privileges.</p>
+                        <div className="flex justify-end gap-4">
+                            <button onClick={() => setShowTransferConfirm(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={handleTransferAdmin} className="btn-danger">Confirm Transfer</button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {showRemoveConfirm && (
+                 <Modal onClose={() => setShowRemoveConfirm(null)}>
+                    <div className="p-6 text-center">
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">Remove Member?</h3>
+                        <p className="text-gray-600 mb-6">Are you sure you want to remove <strong>{showRemoveConfirm.full_name}</strong> from the group?</p>
+                        <div className="flex justify-end gap-4">
+                            <button onClick={() => setShowRemoveConfirm(null)} className="btn-secondary">Cancel</button>
+                            <button onClick={() => handleRemoveMember(showRemoveConfirm.id)} className="btn-danger">Yes, Remove</button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+            
+            {showDeleteConfirm && (
+                <Modal onClose={() => setShowDeleteConfirm(false)}>
+                    <div className="p-2">
+                        <h3 className="text-xl font-bold text-red-700 mb-4">Confirm Deletion</h3>
+                        <p className="mb-4">This action is irreversible. To confirm, please type <strong className="text-red-600 font-mono">delete {group.name}</strong> into the box below.</p>
+                        <input type="text" value={confirmText} onChange={e => setConfirmText(e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm mb-4" />
+                        <button onClick={handleDeleteGroup} className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-red-300" disabled={confirmText !== `delete ${group.name}`}>
+                            I understand, delete this group
+                        </button>
+                    </div>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+
+// ====================================================================================
+// --- SUB-COMPONENTS ---
+// ====================================================================================
 const MembersList = ({ members, adminId }) => (
     <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-2xl font-bold mb-4">Group Members ({members.length})</h3>
@@ -54,110 +269,151 @@ const MembersList = ({ members, adminId }) => (
     </div>
 );
 
-const DealCard = ({ deal, onAddToCart, onToggleFavorite, isFavorite, onViewSupplier }) => {
-  const [quantity, setQuantity] = useState(deal.min_order_quantity || 1);
-  const [showReviews, setShowReviews] = useState(false);
-
-  const ratings = deal.profiles?.ratings || [];
-  const averageRating = ratings.length > 0 ? ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length : 0;
-
-  return (
-    <div className="bg-white p-5 rounded-xl shadow-lg transition-shadow hover:shadow-xl flex flex-col gap-4">
-      {showReviews && <Modal onClose={() => setShowReviews(false)}><SupplierReviewsModal reviews={ratings} supplierName={deal.profiles?.business_name} /></Modal>}
-      <div className="flex-grow">
-        <div className="flex justify-between items-start">
-            <h4 className="text-xl font-bold text-gray-900">{deal.item_name}</h4>
-            <button onClick={() => onToggleFavorite(deal.supplier_id)} className={`p-1 rounded-full ${isFavorite ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-400'}`} title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-                <IconStar isFavorite={isFavorite} />
-            </button>
+const SupplierReviewsModal = ({ reviews, supplierName }) => (
+    <div>
+        <h3 className="text-xl font-bold mb-4">Reviews for {supplierName}</h3>
+        <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
+            {reviews.length > 0 ? reviews.map(review => (
+                <div key={review.id} className="border-b pb-3">
+                    <div className="flex justify-between items-center">
+                        <p className="font-semibold">{review.vendor.full_name}</p>
+                        <StarRating rating={review.rating} readOnly />
+                    </div>
+                    <p className="text-gray-600 mt-1">{review.review_text}</p>
+                </div>
+            )) : <p>No reviews to display.</p>}
         </div>
-        <button onClick={onViewSupplier} className="text-sm text-indigo-600 hover:underline mb-3">by {deal.profiles?.business_name || 'Unknown Supplier'}</button>
-        
-        {ratings.length > 0 ? (
-            <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={() => setShowReviews(true)}>
-                <StarRating rating={averageRating} readOnly />
-                <span className="text-sm text-blue-600 hover:underline">({ratings.length} reviews)</span>
-            </div>
-        ) : (
-             <p className="text-sm text-gray-400 mb-3">No reviews yet</p>
-        )}
-        <p className="text-gray-600 text-sm mb-4">{deal.item_description}</p>
-        
-      </div>
-
-      <div className="border-t pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-            <p className="text-2xl font-bold text-indigo-600">₹{deal.price_per_unit.toFixed(2)} <span className="text-base font-normal text-gray-500">/ {deal.unit}</span></p>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <input type="number" min={deal.min_order_quantity} value={quantity} onChange={(e) => setQuantity(Math.max(deal.min_order_quantity, parseInt(e.target.value) || 1))} className="w-20 p-2 border rounded-md text-center"/>
-          <button onClick={() => onAddToCart(deal.id, quantity)} className="btn-primary-sm flex-grow bg-blue-500 rounded-lg px-4 py-2 hover:bg-blue-600 text-white ">Add to Cart</button>
-        </div>
-      </div>
     </div>
-  );
+);
+
+const DealCard = ({ deal, onAddToCart, onToggleFavorite, isFavorite, onViewSupplier }) => {
+    const [quantity, setQuantity] = useState(deal.min_order_quantity || 1);
+    const [showReviews, setShowReviews] = useState(false);
+
+    const ratings = deal.profiles?.ratings || [];
+    const averageRating = ratings.length > 0 ? ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length : 0;
+
+    return (
+    <div className="bg-white p-5 rounded-xl shadow-lg transition-shadow hover:shadow-xl flex flex-col gap-4">
+        {showReviews && <Modal onClose={() => setShowReviews(false)}><SupplierReviewsModal reviews={ratings} supplierName={deal.profiles?.business_name} /></Modal>}
+        <div className="flex-grow">
+            <div className="flex justify-between items-start">
+                <h4 className="text-xl font-bold text-gray-900">{deal.item_name}</h4>
+                <button 
+                    onClick={() => onToggleFavorite(deal.supplier_id)} 
+                    className={`p-1 rounded-full ${isFavorite ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-400'}`} 
+                    title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-pressed={isFavorite}
+                >
+                    <IconStar isFavorite={isFavorite} />
+                </button>
+            </div>
+            <button onClick={onViewSupplier} className="text-sm text-indigo-600 hover:underline mb-3">by {deal.profiles?.business_name || 'Unknown Supplier'}</button>
+            
+            {ratings.length > 0 ? (
+                <div className="flex items-center gap-2 mb-3 cursor-pointer" onClick={() => setShowReviews(true)}>
+                    <StarRating rating={averageRating} readOnly />
+                    <span className="text-sm text-blue-600 hover:underline">({ratings.length} reviews)</span>
+                </div>
+            ) : (
+                    <p className="text-sm text-gray-400 mb-3">No reviews yet</p>
+            )}
+            <p className="text-gray-600 text-sm mb-4">{deal.item_description}</p>
+        </div>
+
+        <div className="border-t pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                <p className="text-2xl font-bold text-indigo-600">₹{deal.price_per_unit.toFixed(2)} <span className="text-base font-normal text-gray-500">/ {deal.unit}</span></p>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <input type="number" min={deal.min_order_quantity} value={quantity} onChange={(e) => setQuantity(Math.max(deal.min_order_quantity, parseInt(e.target.value) || 1))} className="w-20 p-2 border rounded-md text-center"/>
+            <button onClick={() => onAddToCart(deal.id, quantity)} className="btn-primary-sm flex-grow bg-blue-500 rounded-lg px-4 py-2 hover:bg-blue-600 text-white ">Add to Cart</button>
+            </div>
+        </div>
+    </div>
+    );
 };
 
-const VendorOrderCard = ({ order, session, onUpdate, onRepeatOrder }) => {
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const statusClasses = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    accepted: 'bg-green-100 text-green-800',
-    denied: 'bg-red-100 text-red-800',
-    completed: 'bg-blue-100 text-blue-800',
-  };
-  
-  const existingReview = order.ratings.find(r => r.vendor_id === session.user.id);
+const RatingForm = ({ order, onSubmit, existingReview }) => {
+    const [rating, setRating] = useState(existingReview?.rating || 5);
+    const [review, setReview] = useState(existingReview?.review_text || '');
 
-  const handleRatingSubmit = async (rating, review) => {
-      const { error } = await supabase.from('ratings').upsert({
-          id: existingReview?.id,
-          order_id: order.id,
-          supplier_id: order.supplier.id, 
-          vendor_id: session.user.id,
-          rating,
-          review_text: review,
-      });
-      if (error) {
-          alert(`Error submitting review: ${error.message}`);
-      } else {
-          setShowRatingModal(false);
-          onUpdate();
-      }
-  };
-
-  return (
-    <div className="bg-white border border-gray-200 p-4 rounded-lg shadow-sm transition hover:shadow-md">
-      {showRatingModal && (
-          <Modal onClose={() => setShowRatingModal(false)}>
-              <RatingForm order={order} onSubmit={handleRatingSubmit} existingReview={existingReview} />
-          </Modal>
-      )}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-2">
+    return (
         <div>
-          <p className="font-bold text-lg text-gray-800">Order to {order.supplier.business_name}</p>
-          <p className="text-sm text-gray-500">Placed {timeAgo(order.created_at)}</p>
+            <h3 className="text-xl font-bold mb-2">Rate your order from {order.supplier.business_name}</h3>
+            <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Rating</label>
+                <StarRating rating={rating} setRating={setRating} />
+            </div>
+            <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Review (optional)</label>
+                <textarea value={review} onChange={(e) => setReview(e.target.value)} className="input-style w-full" rows="3"></textarea>
+            </div>
+            <button onClick={() => onSubmit(rating, review)} className="btn-primary w-full">Submit Review</button>
         </div>
-        <div className="flex items-center gap-4">
-            <p className="font-semibold text-lg">Total: ₹{order.total_value}</p>
-            <span className={`px-3 py-1 text-sm rounded-full font-semibold ${statusClasses[order.status]}`}>{order.status}</span>
+    );
+};
+
+const VendorOrderCard = ({ order, session, onUpdate, onRepeatOrder, setNotification }) => {
+    const [showRatingModal, setShowRatingModal] = useState(false);
+    const statusClasses = {
+        pending: 'bg-yellow-100 text-yellow-800',
+        accepted: 'bg-green-100 text-green-800',
+        denied: 'bg-red-100 text-red-800',
+        completed: 'bg-blue-100 text-blue-800',
+    };
+    
+    const existingReview = order.ratings.find(r => r.vendor_id === session.user.id);
+
+    const handleRatingSubmit = async (rating, review) => {
+        const { error } = await supabase.from('ratings').upsert({
+            id: existingReview?.id,
+            order_id: order.id,
+            supplier_id: order.supplier.id, 
+            vendor_id: session.user.id,
+            rating,
+            review_text: review,
+        });
+        if (error) {
+            setNotification({type: 'error', message: `Error submitting review: ${error.message}`});
+        } else {
+            setShowRatingModal(false);
+            onUpdate();
+        }
+    };
+
+    return (
+    <div className="bg-white border border-gray-200 p-4 rounded-lg shadow-sm transition hover:shadow-md">
+        {showRatingModal && (
+            <Modal onClose={() => setShowRatingModal(false)}>
+                <RatingForm order={order} onSubmit={handleRatingSubmit} existingReview={existingReview} />
+            </Modal>
+        )}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-2">
+            <div>
+                <p className="font-bold text-lg text-gray-800">Order to {order.supplier.business_name}</p>
+                <p className="text-sm text-gray-500">Placed {timeAgo(order.created_at)}</p>
+            </div>
+            <div className="flex items-center gap-4">
+                <p className="font-semibold text-lg">Total: ₹{order.total_value}</p>
+                <span className={`px-3 py-1 text-sm rounded-full font-semibold ${statusClasses[order.status]}`}>{order.status}</span>
+            </div>
         </div>
-      </div>
-      <ul className="text-sm text-gray-600 mt-2 list-disc list-inside bg-gray-50 p-3 rounded-md">
-        {order.order_items.map(item => (
-          <li key={item.id}>{item.quantity} x {item.deal.item_name}</li>
-        ))}
-      </ul>
-      {order.status === 'completed' && (
-          <div className="text-right mt-3 flex justify-end items-center gap-2">
-              <button onClick={() => onRepeatOrder(order)} className="btn-secondary-sm flex items-center gap-1"><IconRepeat /> Repeat Order</button>
-              <button onClick={() => setShowRatingModal(true)} className="btn-secondary-sm">
-                  {existingReview ? 'Edit Review' : 'Rate Supplier'}
-              </button>
-          </div>
-      )}
+        <ul className="text-sm text-gray-600 mt-2 list-disc list-inside bg-gray-50 p-3 rounded-md">
+            {order.order_items.map(item => (
+                <li key={item.id}>{item.quantity} x {item.deal.item_name}</li>
+            ))}
+        </ul>
+        {order.status === 'completed' && (
+            <div className="text-right mt-3 flex justify-end items-center gap-2">
+                <button onClick={() => onRepeatOrder(order)} className="btn-secondary-sm flex items-center gap-1"><IconRepeat /> Repeat Order</button>
+                <button onClick={() => setShowRatingModal(true)} className="btn-secondary-sm">
+                    {existingReview ? 'Edit Review' : 'Rate Supplier'}
+                </button>
+            </div>
+        )}
     </div>
-  );
+    );
 };
 
 const CartModal = ({ deals, cart, onClose, onUpdateCart, onPlaceOrder }) => {
@@ -215,43 +471,6 @@ const CartModal = ({ deals, cart, onClose, onUpdateCart, onPlaceOrder }) => {
         </Modal>
     );
 };
-
-const RatingForm = ({ order, onSubmit, existingReview }) => {
-    const [rating, setRating] = useState(existingReview?.rating || 5);
-    const [review, setReview] = useState(existingReview?.review_text || '');
-
-    return (
-        <div>
-            <h3 className="text-xl font-bold mb-2">Rate your order from {order.supplier.business_name}</h3>
-            <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Rating</label>
-                <StarRating rating={rating} setRating={setRating} />
-            </div>
-            <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Review (optional)</label>
-                <textarea value={review} onChange={(e) => setReview(e.target.value)} className="input-style w-full" rows="3"></textarea>
-            </div>
-            <button onClick={() => onSubmit(rating, review)} className="btn-primary w-full">Submit Review</button>
-        </div>
-    );
-};
-
-const SupplierReviewsModal = ({ reviews, supplierName }) => (
-    <div>
-        <h3 className="text-xl font-bold mb-4">Reviews for {supplierName}</h3>
-        <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
-            {reviews.length > 0 ? reviews.map(review => (
-                <div key={review.id} className="border-b pb-3">
-                    <div className="flex justify-between items-center">
-                        <p className="font-semibold">{review.vendor.full_name}</p>
-                        <StarRating rating={review.rating} readOnly />
-                    </div>
-                    <p className="text-gray-600 mt-1">{review.review_text}</p>
-                </div>
-            )) : <p>No reviews to display.</p>}
-        </div>
-    </div>
-);
 
 const SupplierProfileModal = ({ supplier, deals, onClose }) => (
     <Modal onClose={onClose}>
@@ -391,7 +610,12 @@ const FilterSortControls = ({ filters, sortOptions, filter, setFilter, sort, set
     </div>
 );
 
+
+// ====================================================================================
+// --- MAIN COMPONENT: GroupView ---
+// ====================================================================================
 const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
+    // --- STATE MANAGEMENT ---
     const [group, setGroup] = useState(initialGroup);
     const [deals, setDeals] = useState([]);
     const [cart, setCart] = useState({});
@@ -399,22 +623,50 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
     const [notification, setNotification] = useState(null);
     const [members, setMembers] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [showCart, setShowCart] = useState(false);
     const [activeTab, setActiveTab] = useState('deals');
-    const [favoriteSuppliers, setFavoriteSuppliers] = useState(new Set());
-    const [showMyOrdersOnly, setShowMyOrdersOnly] = useState(false);
-    const [viewingSupplier, setViewingSupplier] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Modal States
+    const [showCart, setShowCart] = useState(false);
+    const [viewingSupplier, setViewingSupplier] = useState(null);
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+    // Filter/Sort States
     const [dealSort, setDealSort] = useState({ key: 'price_per_unit', asc: true });
     const [dealFilter, setDealFilter] = useState('');
     const [orderSort, setOrderSort] = useState({ key: 'created_at', asc: false });
     const [orderFilter, setOrderFilter] = useState('');
+    const [showMyOrdersOnly, setShowMyOrdersOnly] = useState(false);
+    const [favoriteSuppliers, setFavoriteSuppliers] = useState(new Set());
 
+    // --- MEMOIZED VALUES ---
     const isGroupAdmin = useMemo(() => group?.admin_id === session.user.id, [group, session.user.id]);
+    
+    // REFACTOR (DRY): Navigation items defined in one place
+    const navItems = useMemo(() => [
+        { key: 'deals', label: 'Deals', icon: <IconShoppingBag />, admin: false },
+        { key: 'favorites', label: 'Favorites', icon: <IconStar isFavorite={true} />, admin: false },
+        { key: 'members', label: 'Members', icon: <IconUsers />, admin: false },
+        { key: 'history', label: 'Order History', icon: <IconArchive />, admin: false },
+        { key: 'group-stats', label: 'Group Stats', icon: <IconTrendingUp />, admin: false },
+        { key: 'my-stats', label: 'My Stats', icon: <IconTrendingUp />, admin: false },
+        { key: 'admin', label: 'Admin Settings', icon: <IconSettings />, admin: true }
+    ], []);
+
+    // --- DATA FETCHING ---
+    const fetchOrders = useCallback(async (groupId) => {
+        const { data, error } = await supabase.from('group_orders')
+            .select('*, supplier:supplier_id(id, business_name), order_items(*, deal:deals(*)), ratings(*, vendor:vendor_id(full_name))')
+            .eq('group_id', groupId)
+            .order('created_at', { ascending: false });
+        if (error) setNotification({type: 'error', message: "Error fetching orders"});
+        else setOrders(data || []);
+    }, []);
 
     const fetchGroupData = useCallback(async (showLoading = true) => {
         if(showLoading) setLoading(true);
         
+        // Fetch group details
         const { data: freshGroupData, error: freshGroupError } = await supabase.from('groups').select('*').eq('id', group.id).single();
         if (freshGroupError) {
             setNotification({ type: 'error', message: 'Could not refresh group data. Please go back and try again.' });
@@ -422,17 +674,16 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
         }
         setGroup(freshGroupData);
 
-        const { data: memberData, error: memberError } = await supabase
-            .from('group_members')
-            .select('profiles(*)')
-            .eq('group_id', group.id);
-
+        // Fetch members
+        const { data: memberData, error: memberError } = await supabase.from('group_members').select('profiles(*)').eq('group_id', group.id);
         if (memberError) {
             setNotification({ type: 'error', message: 'Failed to load group members.' });
         } else {
             setMembers(memberData.map(m => m.profiles));
         }
 
+        // PERFORMANCE FIX (Conceptual): This RPC should join profiles to avoid a second DB call.
+        // The function should be named `search_deals_with_profiles` in your Supabase SQL editor.
         const { data: dealsData } = await supabase.rpc('search_deals_by_pincode', { pincode_to_search: group.pincode });
         if (dealsData) {
             const supplierIds = [...new Set(dealsData.map(d => d.supplier_id))];
@@ -452,33 +703,25 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
 
         await fetchOrders(group.id);
         if(showLoading) setLoading(false);
-    }, [group.id, group.pincode]);
-
-    const fetchOrders = async (groupId) => {
-        const { data, error } = await supabase.from('group_orders')
-          .select('*, supplier:supplier_id(id, business_name), order_items(*, deal:deals(*)), ratings(*)')
-          .eq('group_id', groupId)
-          .order('created_at', { ascending: false });
-        if (error) setNotification({type: 'error', message: "Error fetching orders"});
-        else setOrders(data || []);
-    };
+    }, [group.id, group.pincode, fetchOrders]);
     
     useEffect(() => {
         fetchGroupData();
     }, [fetchGroupData]);
 
+    // --- HANDLERS ---
     const handleLeaveGroup = async () => {
+        setShowLeaveConfirm(false); // Close confirmation modal
         if (isGroupAdmin && members.length > 1) {
             setNotification({type: 'error', message: "Admins cannot leave a group with other members. Please transfer admin rights or delete the group."});
             return;
         }
-        if (window.confirm("Are you sure you want to leave this group? This action cannot be undone.")) {
-            const { error } = await supabase.from('group_members').delete().match({ group_id: group.id, user_id: session.user.id });
-            if (error) {
-                setNotification({ type: 'error', message: "Failed to leave group." });
-            } else {
-                onLeaveOrDelete();
-            }
+        
+        const { error } = await supabase.from('group_members').delete().match({ group_id: group.id, user_id: session.user.id });
+        if (error) {
+            setNotification({ type: 'error', message: `Failed to leave group: ${error.message}` });
+        } else {
+            onLeaveOrDelete();
         }
     };
 
@@ -511,25 +754,35 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
             const deal = deals.find(d => d.id === dealId);
             if (!deal || !deal.profiles) return acc;
             const supplierId = deal.profiles.id;
-            if (!acc[supplierId]) acc[supplierId] = { items: [], total: 0 };
-            acc[supplierId].items.push({ deal_id: deal.id, quantity: cart[dealId], item_price: deal.price_per_unit });
-            acc[supplierId].total += deal.price_per_unit * cart[dealId];
+            if (!acc[supplierId]) acc[supplierId] = { items: [] };
+            acc[supplierId].items.push({ deal_id: deal.id, quantity: cart[dealId] });
             return acc;
         }, {});
 
+        // SECURITY FIX: Use a server-side RPC for atomic & secure order creation
         for (const supplierId in ordersBySupplier) {
             const orderData = ordersBySupplier[supplierId];
-            const { data: groupOrder, error: orderError } = await supabase.from('group_orders').insert({ group_id: group.id, supplier_id: supplierId, total_value: orderData.total }).select().single();
-            if (orderError) { setNotification({ type: 'error', message: `Failed to create order: ${orderError.message}` }); return; }
-            const orderItemsData = orderData.items.map(item => ({ ...item, order_id: groupOrder.id, vendor_id: session.user.id }));
-            const { error: itemsError } = await supabase.from('order_items').insert(orderItemsData);
-            if (itemsError) { setNotification({ type: 'error', message: `Failed to add items to order: ${itemsError.message}` }); return; }
+            
+            // IMPORTANT: This 'create_order' function must be created in your Supabase SQL editor.
+            // It should handle inserting into 'group_orders' and 'order_items' in a single transaction
+            // and calculate the total price securely on the server to prevent tampering.
+            const { error } = await supabase.rpc('create_order', {
+                p_group_id: group.id,
+                p_supplier_id: supplierId,
+                p_vendor_id: session.user.id,
+                p_items: orderData.items // Pass array of { deal_id, quantity }
+            });
+
+            if (error) {
+                setNotification({ type: 'error', message: `Failed to create order: ${error.message}` });
+                return; // Stop processing further orders on failure
+            }
         }
 
         setNotification({ type: 'success', message: 'Your order has been sent to the supplier(s)!' });
         setCart({});
         setShowCart(false);
-        fetchOrders(group.id);
+        fetchGroupData(false); // Refetch all data to show the new order
     };
     
     const handleRepeatOrder = (order) => {
@@ -566,6 +819,7 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
         setIsMobileMenuOpen(false);
     };
 
+    // --- RENDER LOGIC ---
     const displayedDeals = useMemo(() => {
         return [...deals]
             .filter(deal => (!dealFilter || deal.supplier_id === dealFilter) && (activeTab !== 'favorites' || favoriteSuppliers.has(deal.supplier_id)))
@@ -592,13 +846,30 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
 
     const suppliers = useMemo(() => [...new Map(deals.filter(d => d.profiles).map(d => [d.profiles.id, d.profiles])).values()], [deals]);
     const orderStatuses = useMemo(() => [...new Set(orders.map(o => o.status))], [orders]);
-    const cartItemsCount = Object.keys(cart).length;
+    const cartItemsCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
 
     if (loading) return <div className="flex justify-center items-center h-screen"><Spinner /></div>;
+    
+    const renderTabs = (isMobile = false) => (
+        <div className={isMobile ? "sm:hidden mt-2 border-t border-gray-200 flex flex-col space-y-1 p-1" : "hidden sm:flex sm:space-x-2"}>
+            {navItems.map(item =>
+                (!item.admin || isGroupAdmin) && (
+                    <TabButton
+                        key={item.key}
+                        icon={item.icon}
+                        label={item.label}
+                        isActive={activeTab === item.key}
+                        onClick={() => handleTabClick(item.key)}
+                    />
+                )
+            )}
+        </div>
+    );
     
     return (
         <div className="min-h-screen bg-gray-50">
             {notification && <Notification {...notification} onDismiss={() => setNotification(null)} />}
+            
             <header className="bg-white shadow-sm sticky top-0 z-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -609,42 +880,27 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
                                 <p className="text-xs sm:text-sm text-gray-500">Pincode: {group.pincode} | Join Code: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{group.join_code}</span></p>
                             </div>
                         </div>
-                        <button onClick={handleLeaveGroup} className="btn-danger-sm self-end sm:self-center whitespace-nowrap">Leave Group</button>
+                        {/* UX FIX: Use a modal for confirmation instead of window.confirm */}
+                        <button onClick={() => setShowLeaveConfirm(true)} className="btn-danger-sm self-end sm:self-center whitespace-nowrap">Leave Group</button>
                     </div>
                 </div>
             </header>
             
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-6 border-b border-gray-200">
-                    {/* Mobile Menu Button */}
                     <div className="sm:hidden flex justify-between items-center">
                         <span className="font-bold text-lg text-indigo-600 capitalize">{activeTab.replace('-', ' ')}</span>
-                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600 rounded-md hover:bg-gray-100">
+                        <button 
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                            className="p-2 text-gray-600 rounded-md hover:bg-gray-100"
+                            aria-expanded={isMobileMenuOpen} // ACCESSIBILITY FIX
+                            aria-controls="mobile-menu"
+                        >
                             <IconMenu />
                         </button>
                     </div>
-                    {/* Desktop Tabs */}
-                    <nav className="hidden sm:flex sm:space-x-2">
-                        <TabButton icon={<IconShoppingBag />} label="Deals" isActive={activeTab === 'deals'} onClick={() => handleTabClick('deals')} />
-                        <TabButton icon={<IconStar isFavorite />} label="Favorites" isActive={activeTab === 'favorites'} onClick={() => handleTabClick('favorites')} />
-                        <TabButton icon={<IconUsers />} label="Members" isActive={activeTab === 'members'} onClick={() => handleTabClick('members')} />
-                        <TabButton icon={<IconArchive />} label="Order History" isActive={activeTab === 'history'} onClick={() => handleTabClick('history')} />
-                        <TabButton icon={<IconTrendingUp />} label="Group Stats" isActive={activeTab === 'group-stats'} onClick={() => handleTabClick('group-stats')} />
-                        <TabButton icon={<IconTrendingUp />} label="My Stats" isActive={activeTab === 'my-stats'} onClick={() => handleTabClick('my-stats')} />
-                        {isGroupAdmin && <TabButton icon={<IconSettings />} label="Admin Settings" isActive={activeTab === 'admin'} onClick={() => handleTabClick('admin')} />}
-                    </nav>
-                     {/* Mobile Menu Dropdown */}
-                    {isMobileMenuOpen && (
-                        <div className="sm:hidden mt-2 border-t border-gray-200 flex flex-col space-y-1 p-1">
-                            <TabButton icon={<IconShoppingBag />} label="Deals" isActive={activeTab === 'deals'} onClick={() => handleTabClick('deals')} />
-                            <TabButton icon={<IconStar isFavorite />} label="Favorites" isActive={activeTab === 'favorites'} onClick={() => handleTabClick('favorites')} />
-                            <TabButton icon={<IconUsers />} label="Members" isActive={activeTab === 'members'} onClick={() => handleTabClick('members')} />
-                            <TabButton icon={<IconArchive />} label="Order History" isActive={activeTab === 'history'} onClick={() => handleTabClick('history')} />
-                            <TabButton icon={<IconTrendingUp />} label="Group Stats" isActive={activeTab === 'group-stats'} onClick={() => handleTabClick('group-stats')} />
-                            <TabButton icon={<IconTrendingUp />} label="My Stats" isActive={activeTab === 'my-stats'} onClick={() => handleTabClick('my-stats')} />
-                            {isGroupAdmin && <TabButton icon={<IconSettings />} label="Admin Settings" isActive={activeTab === 'admin'} onClick={() => handleTabClick('admin')} />}
-                        </div>
-                    )}
+                    {renderTabs(false)} {/* Desktop Tabs */}
+                    {isMobileMenuOpen && <div id="mobile-menu">{renderTabs(true)}</div>} {/* Mobile Tabs */}
                 </div>
                 
                 <div>
@@ -659,7 +915,7 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
                             />
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
                                {displayedDeals.length > 0 ? displayedDeals.map(deal => (
-                                 <DealCard key={deal.id} deal={deal} onAddToCart={(dealId, qty) => setCart(prev => ({ ...prev, [dealId]: (prev[dealId] || 0) + qty }))} onToggleFavorite={toggleFavoriteSupplier} isFavorite={favoriteSuppliers.has(deal.supplier_id)} onViewSupplier={() => setViewingSupplier(deal.profiles)} />
+                                   <DealCard key={deal.id} deal={deal} onAddToCart={(dealId, qty) => setCart(prev => ({ ...prev, [dealId]: (prev[dealId] || 0) + qty }))} onToggleFavorite={toggleFavoriteSupplier} isFavorite={favoriteSuppliers.has(deal.supplier_id)} onViewSupplier={() => setViewingSupplier(deal.profiles)} />
                                )) : <p className="text-gray-500 xl:col-span-2 text-center py-10">{activeTab === 'favorites' ? 'You have no favorite suppliers yet.' : 'No active deals match your criteria.'}</p>}
                             </div>
                         </div>
@@ -681,7 +937,7 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
                                 </div>
                             </div>
                             <div className="space-y-4 mt-6">
-                                {displayedOrders.length > 0 ? displayedOrders.map(order => <VendorOrderCard key={order.id} order={order} session={session} onUpdate={fetchGroupData} onRepeatOrder={handleRepeatOrder} />) : <p className="text-gray-500 text-center py-10">No orders found.</p>}
+                                {displayedOrders.length > 0 ? displayedOrders.map(order => <VendorOrderCard key={order.id} order={order} session={session} onUpdate={() => fetchGroupData(false)} onRepeatOrder={handleRepeatOrder} setNotification={setNotification} />) : <p className="text-gray-500 text-center py-10">No orders found.</p>}
                             </div>
                         </div>
                     )}
@@ -707,8 +963,22 @@ const GroupView = ({ initialGroup, session, onBack, onLeaveOrDelete }) => {
 
             {showCart && <CartModal deals={deals} cart={cart} onClose={() => setShowCart(false)} onUpdateCart={handleUpdateCart} onPlaceOrder={handlePlaceOrder} />}
             {viewingSupplier && <SupplierProfileModal supplier={viewingSupplier} deals={deals.filter(d => d.supplier_id === viewingSupplier.id)} onClose={() => setViewingSupplier(null)} />}
+
+            {/* UX FIX: Confirmation Modal for Leaving Group */}
+            {showLeaveConfirm && (
+                <Modal onClose={() => setShowLeaveConfirm(false)}>
+                    <div className="p-4">
+                        <h3 className="text-xl font-bold mb-4">Leave Group?</h3>
+                        <p className="text-gray-600 mb-6">Are you sure you want to leave "{group.name}"? This action cannot be undone.</p>
+                        <div className="flex justify-end gap-4">
+                            <button onClick={() => setShowLeaveConfirm(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={handleLeaveGroup} className="btn-danger">Leave</button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };
 
-export default GroupView;
+export default GroupView
