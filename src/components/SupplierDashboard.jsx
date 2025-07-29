@@ -1,9 +1,9 @@
-// src/components/SupplierDashboard.jsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
+// Assuming UI components are in a separate file as is standard practice.
 import { Spinner, Modal, Notification, StarRating } from './UI';
 
-// --- SVG Icons (No changes needed here) ---
+// --- SVG Icons ---
 const IconFilter = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>;
 const IconArrowUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>;
 const IconArrowDown = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>;
@@ -13,8 +13,7 @@ const IconStar = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height
 const IconTrendingUp = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>;
 const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
 const IconMenu = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>;
-const ImageIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-image"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>;
-
+const ImageIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-image"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>;
 
 const timeAgo = (date) => {
   if (!date) return '';
@@ -32,295 +31,7 @@ const timeAgo = (date) => {
   return Math.floor(seconds) + " seconds ago";
 };
 
-// --- Main Supplier Dashboard Component ---
-const SupplierDashboard = ({ profile, session }) => {
-    if (!session) {
-        return null; 
-    }
-
-    const [view, setView] = useState('orders');
-    const [orders, setOrders] = useState([]);
-    const [deals, setDeals] = useState([]);
-    const [reviews, setReviews] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [showCreateDeal, setShowCreateDeal] = useState(false);
-    const [editingDeal, setEditingDeal] = useState(null);
-    const [viewingOrder, setViewingOrder] = useState(null);
-    const [notification, setNotification] = useState(null);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [orderFilter, setOrderFilter] = useState('');
-    const [orderSort, setOrderSort] = useState({ key: 'created_at', asc: false });
-    const [dealFilter, setDealFilter] = useState('');
-    const [dealSort, setDealSort] = useState({ key: 'created_at', asc: false });
-    const [reviewFilter, setReviewFilter] = useState('');
-    const [reviewSort, setReviewSort] = useState({ key: 'created_at', asc: false });
-
-    const fetchData = useCallback(async () => {
-        if (!session) return; 
-        setLoading(true);
-        
-        const { data: ordersData } = await supabase
-            .from('group_orders').select('*, group:group_id(name), order_items(*, deal:deals(*), vendor:vendor_id(full_name, business_name))')
-            .eq('supplier_id', session.user.id).order('created_at', { ascending: false });
-        setOrders(ordersData || []);
-
-        const { data: dealsData } = await supabase
-            .from('deals').select('*').eq('supplier_id', session.user.id).order('created_at', { ascending: false });
-        setDeals(dealsData || []);
-
-        const { data: reviewsData } = await supabase
-            .from('ratings').select('*, vendor:vendor_id(full_name), order:order_id(order_items(*, deal:deals(item_name)))').eq('supplier_id', session.user.id).order('created_at', { ascending: false });
-        setReviews(reviewsData || []);
-        
-        setLoading(false);
-    }, [session]); 
-
-    useEffect(() => {
-        if (session) {
-            fetchData();
-        }
-    }, [session, fetchData]);
-
-    // --- MODIFIED: Handle deal creation with image upload ---
-    const handleCreateDeal = async (dealData, imageFile) => {
-        try {
-            let imageUrl = null;
-            if (imageFile) {
-                const fileExt = imageFile.name.split('.').pop();
-                const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
-                const { error: uploadError } = await supabase.storage
-                    .from('deal-images')
-                    .upload(fileName, imageFile);
-
-                if (uploadError) throw uploadError;
-
-                const { data: urlData } = supabase.storage.from('deal-images').getPublicUrl(fileName);
-                imageUrl = urlData.publicUrl;
-            }
-
-            const finalDealData = { ...dealData, supplier_id: session.user.id, image_url: imageUrl };
-            const { error: insertError } = await supabase.from('deals').insert(finalDealData);
-
-            if (insertError) throw insertError;
-
-            setNotification({ type: 'success', message: 'Deal created successfully!' });
-            fetchData();
-            setShowCreateDeal(false);
-        } catch (error) {
-            setNotification({ type: 'error', message: error.message });
-        }
-    };
-
-    // --- MODIFIED: Handle deal updates with image upload ---
-    const handleUpdateDeal = async (dealData, imageFile) => {
-        try {
-            let imageUrl = editingDeal.image_url; // Keep existing image by default
-            if (imageFile) {
-                const fileExt = imageFile.name.split('.').pop();
-                const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
-                const { error: uploadError } = await supabase.storage
-                    .from('deal-images')
-                    .upload(fileName, imageFile);
-
-                if (uploadError) throw uploadError;
-
-                const { data: urlData } = supabase.storage.from('deal-images').getPublicUrl(fileName);
-                imageUrl = urlData.publicUrl;
-            }
-
-            const finalDealData = { ...dealData, image_url: imageUrl };
-            const { error: updateError } = await supabase.from('deals').update(finalDealData).eq('id', editingDeal.id);
-
-            if (updateError) throw updateError;
-
-            setNotification({ type: 'success', message: 'Deal updated successfully!' });
-            setEditingDeal(null);
-            fetchData();
-        } catch (error) {
-            setNotification({ type: 'error', message: `Failed to update deal: ${error.message}` });
-        }
-    };
-    
-    const handleUpdateOrderStatus = async (orderId, status) => {
-        if (status === 'completed') {
-            const orderToComplete = orders.find(o => o.id === orderId);
-            if (!orderToComplete) {
-                setNotification({ type: 'error', message: 'Could not find the order to update.'});
-                return;
-            }
-            try {
-                for (const item of orderToComplete.order_items) {
-                    const currentStock = item.deal.stock_quantity;
-                    const newStock = currentStock - item.quantity;
-                    const { error: stockError } = await supabase
-                        .from('deals')
-                        .update({ stock_quantity: newStock < 0 ? 0 : newStock })
-                        .eq('id', item.deal.id);
-                    if (stockError) throw new Error(`Failed to update stock for ${item.deal.item_name}: ${stockError.message}`);
-                }
-                const { error: statusError } = await supabase.from('group_orders').update({ status }).eq('id', orderId);
-                if (statusError) throw new Error(`Stock updated, but failed to update order status: ${statusError.message}`);
-                setNotification({ type: 'success', message: `Order has been completed and stock updated.` });
-            } catch (error) {
-                setNotification({ type: 'error', message: error.message });
-            } finally {
-                fetchData();
-            }
-        } else {
-            const { error } = await supabase.from('group_orders').update({ status }).eq('id', orderId);
-            if (error) setNotification({ type: 'error', message: `Failed to update status: ${error.message}` });
-            else setNotification({ type: 'success', message: `Order has been ${status}.` });
-            fetchData();
-        }
-    };
-    
-    const displayedOrders = useMemo(() => {
-        return [...orders]
-            .filter(o => !orderFilter || o.status === orderFilter)
-            .sort((a, b) => {
-                const valA = orderSort.key === 'created_at' ? new Date(a.created_at) : a.total_value;
-                const valB = orderSort.key === 'created_at' ? new Date(b.created_at) : b.total_value;
-                if (valA < valB) return orderSort.asc ? -1 : 1;
-                if (valA > valB) return orderSort.asc ? 1 : -1;
-                return 0;
-            });
-    }, [orders, orderFilter, orderSort]);
-
-    const displayedDeals = useMemo(() => {
-        return [...deals]
-            .filter(d => !dealFilter || (dealFilter === 'active' ? d.is_active : !d.is_active))
-            .sort((a, b) => {
-                const valA = a[dealSort.key];
-                const valB = b[dealSort.key];
-                if (valA < valB) return dealSort.asc ? -1 : 1;
-                if (valA > valB) return dealSort.asc ? 1 : -1;
-                return 0;
-            });
-    }, [deals, dealFilter, dealSort]);
-
-    const displayedReviews = useMemo(() => {
-        return [...reviews]
-            .filter(r => !reviewFilter || r.rating === parseInt(reviewFilter))
-            .sort((a, b) => {
-                const valA = new Date(a.created_at);
-                const valB = new Date(b.created_at);
-                if (valA < valB) return reviewSort.asc ? -1 : 1;
-                if (valA > valB) return reviewSort.asc ? 1 : -1;
-                return 0;
-            });
-    }, [reviews, reviewFilter, reviewSort]);
-
-    const averageRating = useMemo(() => reviews.length > 0 ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length : 0, [reviews]);
-    const orderStatuses = useMemo(() => [...new Set(orders.map(o => o.status))], [orders]);
-
-    const handleTabClick = (tabName) => {
-        setView(tabName);
-        setIsMobileMenuOpen(false);
-    };
-
-    return (
-        <div className="min-h-screen bg-gray-50">
-            {notification && <Notification {...notification} onDismiss={() => setNotification(null)} />}
-            
-            <header className="bg-white shadow-sm sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-2xl font-bold text-gray-800">Supplier Dashboard</h2>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <StarRating rating={averageRating} readOnly />
-                            <span className="font-semibold">{averageRating.toFixed(1)}</span>
-                            <span>({reviews.length} reviews)</span>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-6 border-b border-gray-200">
-                    <div className="sm:hidden flex justify-between items-center">
-                        <span className="font-bold text-lg text-indigo-600 capitalize">{view}</span>
-                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2">
-                            <IconMenu />
-                        </button>
-                    </div>
-                    <nav className="hidden sm:flex sm:space-x-2">
-                        <TabButton icon={<IconArchive />} label="Orders" isActive={view === 'orders'} onClick={() => handleTabClick('orders')} />
-                        <TabButton icon={<IconShoppingBag />} label="Deals" isActive={view === 'deals'} onClick={() => handleTabClick('deals')} />
-                        <TabButton icon={<IconStar />} label="Reviews" isActive={view === 'reviews'} onClick={() => handleTabClick('reviews')} />
-                        <TabButton icon={<IconTrendingUp />} label="Analytics" isActive={view === 'analytics'} onClick={() => handleTabClick('analytics')} />
-                    </nav>
-                    {isMobileMenuOpen && (
-                        <div className="sm:hidden mt-2 border-t border-gray-200 flex flex-col space-y-1 p-1">
-                            <TabButton icon={<IconArchive />} label="Orders" isActive={view === 'orders'} onClick={() => handleTabClick('orders')} />
-                            <TabButton icon={<IconShoppingBag />} label="Deals" isActive={view === 'deals'} onClick={() => handleTabClick('deals')} />
-                            <TabButton icon={<IconStar />} label="Reviews" isActive={view === 'reviews'} onClick={() => handleTabClick('reviews')} />
-                            <TabButton icon={<IconTrendingUp />} label="Analytics" isActive={view === 'analytics'} onClick={() => handleTabClick('analytics')} />
-                        </div>
-                    )}
-                </div>
-
-                {loading ? <div className="flex justify-center py-12"><Spinner /></div> : (
-                    <>
-                        {view === 'analytics' && <AnalyticsView orders={orders} deals={deals} />}
-                        {view === 'orders' && (
-                            <div>
-                                <FilterSortControls
-                                    filters={[{ value: '', label: 'All Statuses' }, ...orderStatuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))]}
-                                    sortOptions={[{ key: 'created_at', label: 'Date' }, { key: 'total_value', label: 'Total' }]}
-                                    filter={orderFilter} setFilter={setOrderFilter}
-                                    sort={orderSort} setSort={setOrderSort}
-                                    filterLabel="Status"
-                                />
-                                <div className="space-y-4 mt-6">
-                                    {displayedOrders.length > 0 ? displayedOrders.map(order => <SupplierOrderCard key={order.id} order={order} onUpdateStatus={handleUpdateOrderStatus} onViewDetails={() => setViewingOrder(order)} />) : <p className="text-center text-gray-500 py-10">No incoming orders found.</p>}
-                                </div>
-                            </div>
-                        )}
-                        {view === 'deals' && (
-                            <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-xl font-bold">Your Deals</h3>
-                                    <button onClick={() => setShowCreateDeal(true)} className="btn-primary">Create New Deal</button>
-                                </div>
-                                <FilterSortControls
-                                    filters={[{ value: '', label: 'All Deals' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
-                                    sortOptions={[{ key: 'created_at', label: 'Date' }, { key: 'item_name', label: 'Name' }]}
-                                    filter={dealFilter} setFilter={setDealFilter}
-                                    sort={dealSort} setSort={setDealSort}
-                                    filterLabel="Status"
-                                />
-                                <div className="space-y-4 mt-6">
-                                    {displayedDeals.length > 0 ? displayedDeals.map(deal => <SupplierDealCard key={deal.id} deal={deal} onUpdate={fetchData} onEdit={() => setEditingDeal(deal)} />) : <p className="text-center text-gray-500 py-10">You haven't created any deals yet.</p>}
-                                </div>
-                            </div>
-                        )}
-                        {view === 'reviews' && (
-                            <div>
-                                <FilterSortControls
-                                    filters={[{ value: '', label: 'All Ratings' }, { value: '5', label: '5 Stars' }, { value: '4', label: '4 Stars' }, { value: '3', label: '3 Stars' }, { value: '2', label: '2 Stars' }, { value: '1', label: '1 Star' }]}
-                                    sortOptions={[{ key: 'created_at', label: 'Most Recent' }]}
-                                    filter={reviewFilter} setFilter={setReviewFilter}
-                                    sort={reviewSort} setSort={setReviewSort}
-                                    filterLabel="Rating"
-                                />
-                                <div className="space-y-4 mt-6">
-                                    {displayedReviews.length > 0 ? displayedReviews.map(review => <SupplierReviewCard key={review.id} review={review} />) : <p className="text-center text-gray-500 py-10">You have not received any reviews yet.</p>}
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
-            </main>
-
-            {showCreateDeal && <Modal onClose={() => setShowCreateDeal(false)}><CreateDealForm onSubmit={handleCreateDeal} /></Modal>}
-            {editingDeal && <Modal onClose={() => setEditingDeal(null)}><EditDealForm deal={editingDeal} onSubmit={handleUpdateDeal} /></Modal>}
-            {viewingOrder && <Modal onClose={() => setViewingOrder(null)}><OrderDetailsModal order={viewingOrder} /></Modal>}
-        </div>
-    );
-};
-
-
-// --- All sub-components below remain unchanged ---
+// --- Sub-Components ---
 
 const AnalyticsView = ({ orders, deals }) => {
     const { totalRevenue, completedOrdersCount, averageOrderValue, topDeals } = useMemo(() => {
@@ -439,11 +150,15 @@ const SupplierOrderCard = ({ order, onUpdateStatus, onViewDetails }) => {
         denied: 'bg-red-100 text-red-800',
         completed: 'bg-blue-100 text-blue-800',
     };
+    const orderSourceText = order.orderType === 'group'
+        ? `Order from Group: ${order.source.name}`
+        : `Individual Order from: ${order.source.full_name}`;
+
     return (
         <div className="bg-white p-4 rounded-lg shadow-md transition hover:shadow-lg">
             <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
                 <div>
-                    <p className="font-bold text-lg text-gray-800">Order from {order.group.name}</p>
+                    <p className="font-bold text-lg text-gray-800">{orderSourceText}</p>
                     <p className="text-sm text-gray-500">{timeAgo(order.created_at)} | Total: ₹{order.total_value}</p>
                 </div>
                 <span className={`px-3 py-1 text-sm rounded-full font-semibold capitalize self-start ${statusClasses[order.status]}`}>{order.status}</span>
@@ -472,7 +187,6 @@ const SupplierOrderCard = ({ order, onUpdateStatus, onViewDetails }) => {
     );
 };
 
-// --- MODIFIED: SupplierDealCard to display image ---
 const SupplierDealCard = ({ deal, onUpdate, onEdit }) => {
     const [isUpdating, setIsUpdating] = useState(false);
     const toggleDealStatus = async () => {
@@ -512,29 +226,36 @@ const SupplierDealCard = ({ deal, onUpdate, onEdit }) => {
     );
 };
 
-const OrderDetailsModal = ({ order }) => (
-    <div>
-        <h3 className="text-xl font-bold mb-4">Order Details</h3>
-        <div className="space-y-4">
-            <p><strong>From Group:</strong> {order.group.name}</p>
-            <p><strong>Total Value:</strong> ₹{order.total_value.toFixed(2)}</p>
-            <p><strong>Status:</strong> <span className="capitalize font-medium">{order.status}</span></p>
-            <div className="border-t pt-2">
-                <h4 className="font-semibold mb-2">Item Breakdown by Vendor:</h4>
-                <ul className="space-y-2">
-                    {order.order_items.map(item => (
-                        <li key={item.id} className="p-2 bg-gray-50 rounded-md">
-                            <p className="font-semibold">{item.quantity} x {item.deal.item_name}</p>
-                            <p className="text-sm text-gray-600">Ordered by: {item.vendor.full_name} ({item.vendor.business_name})</p>
-                        </li>
-                    ))}
-                </ul>
+const OrderDetailsModal = ({ order }) => {
+    const orderSourceText = order.orderType === 'group'
+        ? `Group: ${order.source.name}`
+        : `Individual: ${order.source.full_name} (${order.source.business_name})`;
+        
+    return (
+        <div>
+            <h3 className="text-xl font-bold mb-4">Order Details</h3>
+            <div className="space-y-4">
+                <p><strong>From:</strong> {orderSourceText}</p>
+                <p><strong>Total Value:</strong> ₹{order.total_value.toFixed(2)}</p>
+                <p><strong>Status:</strong> <span className="capitalize font-medium">{order.status}</span></p>
+                <div className="border-t pt-2">
+                    <h4 className="font-semibold mb-2">Item Breakdown:</h4>
+                    <ul className="space-y-2">
+                        {order.order_items.map(item => (
+                            <li key={item.id} className="p-2 bg-gray-50 rounded-md">
+                                <p className="font-semibold">{item.quantity} x {item.deal.item_name}</p>
+                                {order.orderType === 'group' &&
+                                    <p className="text-sm text-gray-600">Ordered by: {item.vendor.full_name} ({item.vendor.business_name})</p>
+                                }
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
-// --- MODIFIED: CreateDealForm with image upload ---
 const CreateDealForm = ({ onSubmit }) => {
     const [formData, setFormData] = useState({
         item_name: '', item_description: '', price_per_unit: '',
@@ -610,7 +331,6 @@ const CreateDealForm = ({ onSubmit }) => {
     );
 };
 
-// --- MODIFIED: EditDealForm with image upload ---
 const EditDealForm = ({ deal, onSubmit }) => {
     const [formData, setFormData] = useState({
         item_name: deal.item_name,
@@ -689,6 +409,292 @@ const EditDealForm = ({ deal, onSubmit }) => {
             <input name="target_pincodes" value={formData.target_pincodes} onChange={handleChange} placeholder="Target Pincodes (comma-separated)" className="input-style w-full" required />
             <button type="submit" className="btn-primary w-full">Save Changes</button>
         </form>
+    );
+};
+
+
+// --- Main Supplier Dashboard Component ---
+const SupplierDashboard = ({ profile, session }) => {
+    const [view, setView] = useState('orders');
+    const [orders, setOrders] = useState([]);
+    const [deals, setDeals] = useState([]);
+    const [reviews, setReviews] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showCreateDeal, setShowCreateDeal] = useState(false);
+    const [editingDeal, setEditingDeal] = useState(null);
+    const [viewingOrder, setViewingOrder] = useState(null);
+    const [notification, setNotification] = useState(null);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [orderFilter, setOrderFilter] = useState('');
+    const [orderSort, setOrderSort] = useState({ key: 'created_at', asc: false });
+    const [dealFilter, setDealFilter] = useState('');
+    const [dealSort, setDealSort] = useState({ key: 'created_at', asc: false });
+    const [reviewFilter, setReviewFilter] = useState('');
+    const [reviewSort, setReviewSort] = useState({ key: 'created_at', asc: false });
+
+    const fetchData = useCallback(async () => {
+        if (!session) return;
+        setLoading(true);
+
+        const { data: groupOrdersData } = await supabase
+            .from('group_orders')
+            .select('*, source:group_id(name), order_items(*, deal:deals(*), vendor:vendor_id(full_name, business_name))')
+            .eq('supplier_id', session.user.id);
+
+        const { data: individualOrdersData } = await supabase
+            .from('individual_orders')
+            .select('*, source:vendor_id(full_name, business_name), order_items:individual_order_items(*, deal:deals(*))')
+            .eq('supplier_id', session.user.id);
+
+        const formattedGroupOrders = (groupOrdersData || []).map(o => ({ ...o, orderType: 'group' }));
+        const formattedIndividualOrders = (individualOrdersData || []).map(o => ({
+            ...o,
+            orderType: 'individual',
+            order_items: o.order_items.map(item => ({ ...item, vendor: o.source }))
+        }));
+
+        const allOrders = [...formattedGroupOrders, ...formattedIndividualOrders];
+        allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setOrders(allOrders);
+
+        const { data: dealsData } = await supabase.from('deals').select('*').eq('supplier_id', session.user.id).order('created_at', { ascending: false });
+        setDeals(dealsData || []);
+
+        const { data: reviewsData } = await supabase.from('ratings').select('*, vendor:vendor_id(full_name), order:order_id(order_items(*, deal:deals(item_name)))').eq('supplier_id', session.user.id).order('created_at', { ascending: false });
+        setReviews(reviewsData || []);
+
+        setLoading(false);
+    }, [session]);
+
+    useEffect(() => {
+        if (session) {
+            fetchData();
+        }
+    }, [session, fetchData]);
+
+    const handleCreateDeal = async (dealData, imageFile) => {
+        try {
+            let imageUrl = null;
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+                const { error: uploadError } = await supabase.storage.from('deal-images').upload(fileName, imageFile);
+                if (uploadError) throw uploadError;
+                const { data: urlData } = supabase.storage.from('deal-images').getPublicUrl(fileName);
+                imageUrl = urlData.publicUrl;
+            }
+            const finalDealData = { ...dealData, supplier_id: session.user.id, image_url: imageUrl };
+            const { error: insertError } = await supabase.from('deals').insert(finalDealData);
+            if (insertError) throw insertError;
+            setNotification({ type: 'success', message: 'Deal created successfully!' });
+            fetchData();
+            setShowCreateDeal(false);
+        } catch (error) {
+            setNotification({ type: 'error', message: error.message });
+        }
+    };
+
+    const handleUpdateDeal = async (dealData, imageFile) => {
+        try {
+            let imageUrl = editingDeal.image_url;
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                const fileName = `${session.user.id}-${Date.now()}.${fileExt}`;
+                const { error: uploadError } = await supabase.storage.from('deal-images').upload(fileName, imageFile);
+                if (uploadError) throw uploadError;
+                const { data: urlData } = supabase.storage.from('deal-images').getPublicUrl(fileName);
+                imageUrl = urlData.publicUrl;
+            }
+            const finalDealData = { ...dealData, image_url: imageUrl };
+            const { error: updateError } = await supabase.from('deals').update(finalDealData).eq('id', editingDeal.id);
+            if (updateError) throw updateError;
+            setNotification({ type: 'success', message: 'Deal updated successfully!' });
+            setEditingDeal(null);
+            fetchData();
+        } catch (error) {
+            setNotification({ type: 'error', message: `Failed to update deal: ${error.message}` });
+        }
+    };
+
+    const handleUpdateOrderStatus = async (orderId, status, orderType) => {
+        const tableName = orderType === 'group' ? 'group_orders' : 'individual_orders';
+        if (status === 'completed') {
+            const orderToComplete = orders.find(o => o.id === orderId);
+            if (!orderToComplete) {
+                setNotification({ type: 'error', message: 'Could not find the order to update.' });
+                return;
+            }
+            try {
+                for (const item of orderToComplete.order_items) {
+                    const currentStock = item.deal.stock_quantity;
+                    const newStock = currentStock - item.quantity;
+                    const { error: stockError } = await supabase
+                        .from('deals')
+                        .update({ stock_quantity: newStock < 0 ? 0 : newStock })
+                        .eq('id', item.deal.id);
+                    if (stockError) throw new Error(`Failed to update stock for ${item.deal.item_name}: ${stockError.message}`);
+                }
+            } catch (error) {
+                setNotification({ type: 'error', message: error.message });
+                fetchData();
+                return;
+            }
+        }
+        const { error } = await supabase.from(tableName).update({ status }).eq('id', orderId);
+        if (error) {
+            setNotification({ type: 'error', message: `Failed to update status: ${error.message}` });
+        } else {
+            setNotification({ type: 'success', message: `Order has been ${status}.` });
+        }
+        fetchData();
+    };
+
+    const displayedOrders = useMemo(() => {
+        return [...orders]
+            .filter(o => !orderFilter || o.status === orderFilter)
+            .sort((a, b) => {
+                const valA = orderSort.key === 'created_at' ? new Date(a.created_at) : a.total_value;
+                const valB = orderSort.key === 'created_at' ? new Date(b.created_at) : b.total_value;
+                if (valA < valB) return orderSort.asc ? -1 : 1;
+                if (valA > valB) return orderSort.asc ? 1 : -1;
+                return 0;
+            });
+    }, [orders, orderFilter, orderSort]);
+
+    const displayedDeals = useMemo(() => {
+        return [...deals]
+            .filter(d => !dealFilter || (dealFilter === 'active' ? d.is_active : !d.is_active))
+            .sort((a, b) => {
+                const valA = a[dealSort.key];
+                const valB = b[dealSort.key];
+                if (valA < valB) return dealSort.asc ? -1 : 1;
+                if (valA > valB) return dealSort.asc ? 1 : -1;
+                return 0;
+            });
+    }, [deals, dealFilter, dealSort]);
+
+    const displayedReviews = useMemo(() => {
+        return [...reviews]
+            .filter(r => !reviewFilter || r.rating === parseInt(reviewFilter))
+            .sort((a, b) => {
+                const valA = new Date(a.created_at);
+                const valB = new Date(b.created_at);
+                if (valA < valB) return reviewSort.asc ? -1 : 1;
+                if (valA > valB) return reviewSort.asc ? 1 : -1;
+                return 0;
+            });
+    }, [reviews, reviewFilter, reviewSort]);
+
+    const averageRating = useMemo(() => reviews.length > 0 ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length : 0, [reviews]);
+    const orderStatuses = useMemo(() => [...new Set(orders.map(o => o.status))], [orders]);
+
+    const handleTabClick = (tabName) => {
+        setView(tabName);
+        setIsMobileMenuOpen(false);
+    };
+
+    if (!session) {
+        return null;
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            {notification && <Notification {...notification} onDismiss={() => setNotification(null)} />}
+
+            <header className="bg-white shadow-sm sticky top-0 z-20">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-gray-800">Supplier Dashboard</h2>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <StarRating rating={averageRating} readOnly />
+                            <span className="font-semibold">{averageRating.toFixed(1)}</span>
+                            <span>({reviews.length} reviews)</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="mb-6 border-b border-gray-200">
+                    <div className="sm:hidden flex justify-between items-center">
+                        <span className="font-bold text-lg text-indigo-600 capitalize">{view}</span>
+                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2">
+                            <IconMenu />
+                        </button>
+                    </div>
+                    <nav className="hidden sm:flex sm:space-x-2">
+                        <TabButton icon={<IconArchive />} label="Orders" isActive={view === 'orders'} onClick={() => handleTabClick('orders')} />
+                        <TabButton icon={<IconShoppingBag />} label="Deals" isActive={view === 'deals'} onClick={() => handleTabClick('deals')} />
+                        <TabButton icon={<IconStar />} label="Reviews" isActive={view === 'reviews'} onClick={() => handleTabClick('reviews')} />
+                        <TabButton icon={<IconTrendingUp />} label="Analytics" isActive={view === 'analytics'} onClick={() => handleTabClick('analytics')} />
+                    </nav>
+                    {isMobileMenuOpen && (
+                        <div className="sm:hidden mt-2 border-t border-gray-200 flex flex-col space-y-1 p-1">
+                            <TabButton icon={<IconArchive />} label="Orders" isActive={view === 'orders'} onClick={() => handleTabClick('orders')} />
+                            <TabButton icon={<IconShoppingBag />} label="Deals" isActive={view === 'deals'} onClick={() => handleTabClick('deals')} />
+                            <TabButton icon={<IconStar />} label="Reviews" isActive={view === 'reviews'} onClick={() => handleTabClick('reviews')} />
+                            <TabButton icon={<IconTrendingUp />} label="Analytics" isActive={view === 'analytics'} onClick={() => handleTabClick('analytics')} />
+                        </div>
+                    )}
+                </div>
+
+                {loading ? <div className="flex justify-center py-12"><Spinner /></div> : (
+                    <>
+                        {view === 'analytics' && <AnalyticsView orders={orders} deals={deals} />}
+                        {view === 'orders' && (
+                            <div>
+                                <FilterSortControls
+                                    filters={[{ value: '', label: 'All Statuses' }, ...orderStatuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))]}
+                                    sortOptions={[{ key: 'created_at', label: 'Date' }, { key: 'total_value', label: 'Total' }]}
+                                    filter={orderFilter} setFilter={setOrderFilter}
+                                    sort={orderSort} setSort={setOrderSort}
+                                    filterLabel="Status"
+                                />
+                                <div className="space-y-4 mt-6">
+                                    {displayedOrders.length > 0 ? displayedOrders.map(order => <SupplierOrderCard key={order.id} order={order} onUpdateStatus={(orderId, status) => handleUpdateOrderStatus(orderId, status, order.orderType)} onViewDetails={() => setViewingOrder(order)} />) : <p className="text-center text-gray-500 py-10">No incoming orders found.</p>}
+                                </div>
+                            </div>
+                        )}
+                        {view === 'deals' && (
+                            <div>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-bold">Your Deals</h3>
+                                    <button onClick={() => setShowCreateDeal(true)} className="btn-primary">Create New Deal</button>
+                                </div>
+                                <FilterSortControls
+                                    filters={[{ value: '', label: 'All Deals' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
+                                    sortOptions={[{ key: 'created_at', label: 'Date' }, { key: 'item_name', label: 'Name' }]}
+                                    filter={dealFilter} setFilter={setDealFilter}
+                                    sort={dealSort} setSort={setDealSort}
+                                    filterLabel="Status"
+                                />
+                                <div className="space-y-4 mt-6">
+                                    {displayedDeals.length > 0 ? displayedDeals.map(deal => <SupplierDealCard key={deal.id} deal={deal} onUpdate={fetchData} onEdit={() => setEditingDeal(deal)} />) : <p className="text-center text-gray-500 py-10">You haven't created any deals yet.</p>}
+                                </div>
+                            </div>
+                        )}
+                        {view === 'reviews' && (
+                            <div>
+                                <FilterSortControls
+                                    filters={[{ value: '', label: 'All Ratings' }, { value: '5', label: '5 Stars' }, { value: '4', label: '4 Stars' }, { value: '3', label: '3 Stars' }, { value: '2', label: '2 Stars' }, { value: '1', label: '1 Star' }]}
+                                    sortOptions={[{ key: 'created_at', label: 'Most Recent' }]}
+                                    filter={reviewFilter} setFilter={setReviewFilter}
+                                    sort={reviewSort} setSort={setReviewSort}
+                                    filterLabel="Rating"
+                                />
+                                <div className="space-y-4 mt-6">
+                                    {displayedReviews.length > 0 ? displayedReviews.map(review => <SupplierReviewCard key={review.id} review={review} />) : <p className="text-center text-gray-500 py-10">You have not received any reviews yet.</p>}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+            </main>
+
+            {showCreateDeal && <Modal onClose={() => setShowCreateDeal(false)}><CreateDealForm onSubmit={handleCreateDeal} /></Modal>}
+            {editingDeal && <Modal onClose={() => setEditingDeal(null)}><EditDealForm deal={editingDeal} onSubmit={handleUpdateDeal} /></Modal>}
+            {viewingOrder && <Modal onClose={() => setViewingOrder(null)}><OrderDetailsModal order={viewingOrder} /></Modal>}
+        </div>
     );
 };
 
